@@ -10,7 +10,7 @@ namespace de.intronik.hashlinkcopy
     public class Monitor
     {
         public static Monitor Root = new Monitor();
-        bool enabled = false;
+        bool enabled = true;
         const string _pcCategory = @"HashLinkCopy";
 
         enum CounterType
@@ -169,6 +169,12 @@ namespace de.intronik.hashlinkcopy
         {
             // TODO add counter
             if (Root.enabled) Directory.Delete(path, true);
+        }
+
+        public static void DeleteFile(string path)
+        {
+            // TODO add counter
+            if (Root.enabled) File.Delete(path);
         }
 
         public static void CreateDirectory(string path)

@@ -67,7 +67,23 @@ examples:
         /// <param name="level"></param>
         protected abstract void ProcessFile(string path, int level);
 
-        void Process(int level, string path)
+        /// <summary>
+        /// Returns the coresponding target path for a given source path
+        /// e.g. sourcePath : C:\Projekte\Hallo\Me.txt
+        ///      Folder     : C:\Projekte
+        ///      newBasePath: E:\Backup\2012-04-19
+        /// yields: E:\Backup\2012-04-19\Hallo\Me.txt
+        /// </summary>
+        /// <param name="sourcePath"></param>
+        /// <param name="newBasePath"></param>
+        /// <returns></returns>
+        protected string RebasePath(string sourcePath, string newBasePath)
+        {
+            var subPath = sourcePath.Substring(this.Folder.Length).TrimStart('\\');
+            return Path.Combine(newBasePath, subPath);
+        }
+
+        protected void Process(string path, int level)
         {
             try
             {
@@ -104,7 +120,7 @@ examples:
                 // PROCESS SUB DIRS
                 //
                 foreach (var subDir in Directory.GetDirectories(path))
-                    this.Process(level + 1, subDir);
+                    this.Process(subDir, level + 1);
             }
             catch (Exception error)
             {
@@ -114,7 +130,7 @@ examples:
 
         public override void Run()
         {
-            Process(0, this.Folder);
+            Process(this.Folder, 0);
         }
 
     }

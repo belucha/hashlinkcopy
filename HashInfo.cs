@@ -88,12 +88,24 @@ namespace de.intronik.hashlinkcopy
 
         public string GetHashPath(string basePath)
         {
-            /*            var b = new StringBuilder(basePath, basePath.Length + hash.Length * 2 / 4 * 5);
-                        for (var i = 0; i < hash.Length / 4; i++)
-                            b.AppendFormat("\\{0:x2}{1:x2}", hash[i * 2 + 0], hash[i * 2 + 1]);
-                        return b.ToString(); 
-             */
-            return Path.Combine(basePath, String.Join(@"\", this.Hash.Select(b => b.ToString("x2")).ToArray()));
+            var s = new StringBuilder(String.Concat(this.Hash.Select(b => b.ToString("x2")).ToArray()));
+            // 0123456789012345678901234567890123456789
+            // 0         1         2         3
+            // a78733087ab883cf8923ca893123affbcd770012
+            s.Insert(40 - (5), '\\');
+            s.Insert(40 - (10), '\\');
+            s.Insert(40 - (15), '\\');
+            s.Insert(40 - (20), '\\');
+            s.Insert(40 - (23), '\\');
+            s.Insert(40 - (26), '\\');
+            s.Insert(40 - (29), '\\');
+            s.Insert(40 - (32), '\\');
+            s.Insert(40 - (34), '\\');
+            s.Insert(40 - (36), '\\');
+            s.Insert(40 - (38), '\\');
+            // we should a obtain a value hashgrouping of
+            // a7\87\33\08\7ab\883\cf8\923\ca893\123af\fbcd7\70012
+            return Path.Combine(basePath, s.ToString());
         }
     }
 }

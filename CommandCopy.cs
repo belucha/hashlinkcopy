@@ -78,7 +78,7 @@ namespace de.intronik.hashlinkcopy
         protected override bool EnterDirectory(string path, int level)
         {
             // get target folder
-            var tf = Path.Combine(this.Target, path.Substring(this.Folder.Length));
+            var tf = this.RebasePath(path, this.Target);
             // check if existing folder should be skipped
             var exists = Directory.Exists(tf);
             if (exists && level >= this.SkipLevel) return true;
@@ -97,28 +97,27 @@ namespace de.intronik.hashlinkcopy
         protected override void ProcessFile(string path, int level)
         {
             // build target file name
-            var tf = Path.Combine(Target, path.Substring(Folder.Length));
+            var tf = this.RebasePath(path, this.Target);
             // skip existing target files
             if (File.Exists(tf)) return;
             var info = new FileInfo(path);
             // check if previous version of file can be found, that we could link to, this way we avoid to calc the SHA1
             if (this.PreviousBackup != null)
             {
-                var pf = Path.Combine(this.PreviousBackup, path.Substring(Folder.Length));
+                var pf = this.RebasePath(path, this.PreviousBackup);
                 if (File.Exists(pf))
                 {
                     var pInfo = new FileInfo(pf);
                     if (pInfo.Length == info.Length && pInfo.LastWriteTimeUtc == info.LastWriteTimeUtc &&
                         (info.Attributes & FileAttributes.Archive) == 0)
-                        if (Win32.CreateHardLink(tf, pf, IntPtr.Zero))
+                        if (Monitor.LinkFile(pf, tf, info.Length))
                         {
-                            Monitor.LinkFile(pf, tf, info.Length);
                             File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
                             return;
                         }
                 }
             }
-            // we have no previous directory or the file changed, use hash algorithm
+            // we have no previous directory or the file changed, or linking failed, use hash algorithm
             var hi = new HashInfo(path);
             var hf = Path.GetFullPath(hi.GetHashPath(this.HashDir));
             // check if we need to copy the file
@@ -130,7 +129,11 @@ namespace de.intronik.hashlinkcopy
             }
             var hInfo = new FileInfo(hf);
             if (hInfo.Length != info.Length)
+            {
                 Monitor.HashCollision(hf, path);
+                Monitor.CopyFile(path, hf, info.Length);
+                return;
+            }
             // create link
             if (!Monitor.LinkFile(hf, tf, info.Length))
                 Monitor.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file

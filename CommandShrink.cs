@@ -14,7 +14,7 @@ namespace de.intronik.hashlinkcopy
             : base(parameters, 1)
         {
             if (String.IsNullOrEmpty(this.HashDir))
-                this.HashDir = Path.Combine(this.Folder, ".\\..\\Hashs\\");
+                this.HashDir = Path.Combine(this.Folder, ".\\..\\hash\\");
         }
 
         protected override void InitOptions()
@@ -41,7 +41,6 @@ namespace de.intronik.hashlinkcopy
             if (!File.Exists(hf))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(hf));
-                File.Move(path, hf);
                 Monitor.MoveFile(path, hf, info.Length);
                 File.SetAttributes(hf, FileAttributes.Normal);
             }
@@ -49,19 +48,17 @@ namespace de.intronik.hashlinkcopy
             {
                 var hInfo = new FileInfo(hf);
                 if (hInfo.Length != info.Length)
+                {
                     Monitor.HashCollision(hf, path);
+                    return;
+                }
                 File.SetAttributes(path, FileAttributes.Normal);
-                File.Delete(path);
+                Monitor.DeleteFile(path);
             }
             // create link
-            if (!Win32.CreateHardLink(path, hf, IntPtr.Zero))
-            {
-                // 10bit link count overrun => move file
-                File.Move(hf, path);
+            if (!Monitor.LinkFile(hf, path, info.Length))
+                // 10bit link count overrun => move the hash file
                 Monitor.MoveFile(hf, path, info.Length);
-            }
-            else
-                Monitor.LinkFile(hf, path, info.Length);
             // adjust file attributes and the last write time
             try
             {
