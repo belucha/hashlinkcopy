@@ -59,7 +59,7 @@ namespace de.intronik.hashlinkcopy
             }
             this.Target = Path.GetFullPath(targetFolder);
             if (String.IsNullOrEmpty(this.HashDir))
-                this.HashDir = Path.Combine(this.Target, ".\\..\\Hashs\\");
+                this.HashDir = Path.GetFullPath(Path.Combine(this.Target, "..\\Hashs\\"));
         }
 
         protected override void InitOptions()
@@ -86,7 +86,7 @@ namespace de.intronik.hashlinkcopy
             if (!exists)
             {
                 // create it and duplicate creation&write time and attributes
-                tf = Directory.CreateDirectory(tf).FullName;
+                Monitor.CreateDirectory(tf);
                 Directory.SetCreationTimeUtc(tf, Directory.GetCreationTimeUtc(path));
                 Directory.SetLastWriteTimeUtc(tf, Directory.GetLastWriteTimeUtc(path));
                 File.SetAttributes(tf, File.GetAttributes(path));
@@ -120,12 +120,11 @@ namespace de.intronik.hashlinkcopy
             }
             // we have no previous directory or the file changed, use hash algorithm
             var hi = new HashInfo(path);
-            var hf = Path.GetFullPath(hi.GetHashPath(HashDir));
+            var hf = Path.GetFullPath(hi.GetHashPath(this.HashDir));
             // check if we need to copy the file
             if (!File.Exists(hf))
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(hf));
-                File.Copy(path, hf);
+                Monitor.CreateDirectory(Path.GetDirectoryName(hf));
                 Monitor.CopyFile(path, hf, info.Length);
                 File.SetAttributes(hf, FileAttributes.Normal);
             }
@@ -133,14 +132,8 @@ namespace de.intronik.hashlinkcopy
             if (hInfo.Length != info.Length)
                 Monitor.HashCollision(hf, path);
             // create link
-            if (!Win32.CreateHardLink(tf, hf, IntPtr.Zero))
-            {
-                // 10bit link count overrun => move file
-                File.Move(hf, tf);
-                Monitor.MoveFile(hf, tf, info.Length);
-            }
-            else
-                Monitor.LinkFile(hf, tf, info.Length);
+            if (!Monitor.LinkFile(hf, tf, info.Length))
+                Monitor.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file
             // adjust file attributes and the last write time
             try
             {

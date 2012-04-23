@@ -10,6 +10,7 @@ namespace de.intronik.hashlinkcopy
     public class Monitor
     {
         public static Monitor Root = new Monitor();
+        bool enabled = false;
         const string _pcCategory = @"HashLinkCopy";
 
         enum CounterType
@@ -127,6 +128,7 @@ namespace de.intronik.hashlinkcopy
         public static void ProcessFile(string path)
         {
             Root.Count(CounterType.processedFiles);
+            Logger.WriteLine(Logger.Verbosity.Debug, "FILE: {0}", path);
         }
         public static void ProcessDirectory(string path)
         {
@@ -145,18 +147,39 @@ namespace de.intronik.hashlinkcopy
         }
         public static void CopyFile(string source, string dest, long size)
         {
+            if (Root.enabled) File.Copy(source, dest);
             Root.Count(CounterType.copiedFiles);
             Root.Count(CounterType.copiedBytes, size);
             Logger.WriteLine(Logger.Verbosity.Message, "Copy file '{0}' to '{1}'", source, dest);
         }
-        public static void LinkFile(string source, string dest, long size)
+        public static bool LinkFile(string source, string dest, long size)
         {
-            Root.Count(CounterType.linkedFiles);
-            Root.Count(CounterType.linkedBytes, size);
-            Logger.WriteLine(Logger.Verbosity.Message, "Link file '{0}' to '{1}'", source, dest);
+            if ((!Root.enabled) || Win32.CreateHardLink(dest, source, IntPtr.Zero))
+            {
+                Root.Count(CounterType.linkedFiles);
+                Root.Count(CounterType.linkedBytes, size);
+                Logger.WriteLine(Logger.Verbosity.Message, "Link file '{0}' to '{1}'", source, dest);
+                return true;
+            }
+            else
+                return false;
         }
+
+        public static void DeleteDirectory(string path)
+        {
+            // TODO add counter
+            if (Root.enabled) Directory.Delete(path, true);
+        }
+
+        public static void CreateDirectory(string path)
+        {
+            // TODO add counter
+            if (Root.enabled) Directory.CreateDirectory(path);
+        }
+
         public static void MoveFile(string source, string dest, long size)
         {
+            if (Root.enabled) File.Move(source, dest);
             Root.Count(CounterType.movedFiles);
             Root.Count(CounterType.movedBytes, size);
             Logger.WriteLine(Logger.Verbosity.Message, "Moving file '{0}' to '{1}'", source, dest);
