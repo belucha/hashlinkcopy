@@ -19,7 +19,7 @@ namespace de.intronik.hashlinkcopy
             var optionsAvailable = OptionAttribute.List(this.GetType()).ToArray();
             foreach (var argument in arguments)
                 if (argument.StartsWith("--"))
-                    this.ProcessOption(optionsAvailable.First(oa => oa.Match(argument)));
+                    this.ProcessOption(optionsAvailable.First(oa => oa.Match(argument))); // TODO: improve handling of invalidoperationexception
                 else
                     this.Parameters.Add(argument);
             if (this.Parameters.Count < minParameters)

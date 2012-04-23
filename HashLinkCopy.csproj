@@ -45,6 +45,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CommandBase.cs" />
+    <Compile Include="CommandClean.cs" />
     <Compile Include="CommandCopy.cs" />
     <Compile Include="CommandHelp.cs" />
     <Compile Include="CommandReduce.cs" />

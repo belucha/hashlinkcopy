@@ -59,7 +59,10 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <returns>true to cancel processing</returns>
-        protected abstract bool EnterDirectory(string path, int level);
+        protected virtual bool CancelEnterDirectory(string path, int level)
+        {
+            return false;
+        }
         /// <summary>
         /// 
         /// </summary>
@@ -92,7 +95,7 @@ examples:
                     Monitor.SkipDirectory(path, "exclude list match");
                     return;
                 }
-                if (this.EnterDirectory(path, level))
+                if (this.CancelEnterDirectory(path, level))
                 {
                     Monitor.SkipDirectory(path, String.Format("level {0}", level));
                     return;

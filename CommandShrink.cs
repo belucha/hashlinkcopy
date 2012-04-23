@@ -17,21 +17,6 @@ namespace de.intronik.hashlinkcopy
                 this.HashDir = Path.Combine(this.Folder, ".\\..\\hash\\");
         }
 
-        protected override void InitOptions()
-        {
-            base.InitOptions();
-        }
-
-        protected override void ProcessOption(OptionAttribute option)
-        {
-            base.ProcessOption(option);
-        }
-
-        protected override bool EnterDirectory(string path, int level)
-        {
-            return false;
-        }
-
         protected override void ProcessFile(string path, int level)
         {
             var info = new FileInfo(path);

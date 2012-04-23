@@ -75,7 +75,7 @@ namespace de.intronik.hashlinkcopy
             if (option.Name == "SkipLevel") this.SkipLevel = int.Parse(option.Value);
         }
 
-        protected override bool EnterDirectory(string path, int level)
+        protected override bool CancelEnterDirectory(string path, int level)
         {
             // get target folder
             var tf = this.RebasePath(path, this.Target);

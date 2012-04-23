@@ -86,6 +86,16 @@ namespace de.intronik.hashlinkcopy
             }
         }
 
+        /// <summary>
+        /// returns true, when the file is a valid hash char
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public static bool IsValidHashPath(string path)
+        {
+            return path.ToCharArray().Reverse().Where(c => c != '\\' && c != '/').Take(40).All(c => Char.IsDigit(c) || (Char.ToLower(c) <= 'f' && Char.ToLower(c) >= 'a'));
+        }
+
         public string GetHashPath(string basePath)
         {
             var s = new StringBuilder(String.Concat(this.Hash.Select(b => b.ToString("x2")).ToArray()));
