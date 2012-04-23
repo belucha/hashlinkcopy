@@ -41,7 +41,14 @@ namespace de.intronik.hashlinkcopy
 
         public static Type GetCommandHandler(string command)
         {
-            return Type.GetType(typeof(CommandBase).ToString().Replace("Base", command), true, true);
+            try
+            {
+                return Type.GetType(typeof(CommandBase).ToString().Replace("Base", command), true, true);
+            }
+            catch (Exception inner)
+            {
+                throw new ArgumentOutOfRangeException(String.Format("Unknown command {0}", command), inner);
+            }
         }
 
         public static CommandBase CreateCommandHandler(IEnumerable<string> arguments)
