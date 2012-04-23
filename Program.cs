@@ -36,6 +36,11 @@ namespace de.intronik.hashlinkcopy
                 }
                 return 0;
             }
+            catch (System.Reflection.TargetInvocationException error)
+            {
+                Logger.Error("{0}: {1}", error.InnerException.GetType().Name, error.InnerException.Message);
+                return 2;
+            }
             catch (Exception error)
             {
                 Logger.Error("{0}: {1}", error.GetType().Name, error.Message);

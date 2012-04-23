@@ -15,7 +15,6 @@ namespace de.intronik.hashlinkcopy
         public string Target { get; private set; }
         public string PreviousBackup { get; private set; }
         public int SkipLevel { get; private set; }
-        public long HashCacheLimit { get; private set; }
 
         public CommandCopy(IEnumerable<string> parameters)
             : base(parameters, 2)
@@ -25,16 +24,42 @@ namespace de.intronik.hashlinkcopy
             var startP = targetFolder.IndexOf('{');
             if (startP >= 0)
             {
+                string format;
                 var endP = targetFolder.IndexOf('}', startP + 1);
                 if (endP >= 0)
                 {
-                    var format = targetFolder.Substring(startP + 1, endP - startP - 1).Trim();
+                    format = targetFolder.Substring(startP + 1, endP - startP - 1).Trim();
                     if (format.Length == 0) format = "yyyy-MM-dd_HH_mm_ss";
                     targetFolder = targetFolder.Substring(0, startP) + DateTime.Now.ToString(format) + targetFolder.Substring(endP + 1);
+                    // search for old backups
+                    if (this.PreviousBackup == null)
+                    {
+                        string newestFolder = null;
+                        DateTime newestFolderDate = DateTime.MinValue;
+                        foreach (var subDir in Directory.GetDirectories(Path.Combine(targetFolder, ".\\..\\")))
+                        {
+                            var name = Path.GetFileName(subDir);
+                            DateTime folderTime;
+                            if (DateTime.TryParseExact(name, format, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.None, out folderTime))
+                            {
+                                if (folderTime >= newestFolderDate)
+                                {
+                                    newestFolder = subDir;
+                                    newestFolderDate = folderTime;
+                                }
+                            }
+                        }
+                        if (newestFolderDate > DateTime.MinValue)
+                        {
+                            this.PreviousBackup = Path.GetFullPath(newestFolder);
+                            Logger.WriteLine(Logger.Verbosity.Message, "Previous backup folder is: {0}", this.PreviousBackup);
+                        }
+                    }
                 }
             }
             this.Target = Path.GetFullPath(targetFolder);
-            this.SkipLevel = int.MaxValue;
+            if (String.IsNullOrEmpty(this.HashDir))
+                this.HashDir = Path.Combine(this.Target, ".\\..\\Hashs\\");
         }
 
         protected override void InitOptions()
@@ -84,7 +109,7 @@ namespace de.intronik.hashlinkcopy
                 {
                     var pInfo = new FileInfo(pf);
                     if (pInfo.Length == info.Length && pInfo.LastWriteTimeUtc == info.LastWriteTimeUtc &&
-                        (info.Attributes & FileAttributes.Archive) == FileAttributes.Normal)
+                        (info.Attributes & FileAttributes.Archive) == 0)
                         if (Win32.CreateHardLink(tf, pf, IntPtr.Zero))
                         {
                             Monitor.LinkFile(pf, tf, info.Length);
@@ -95,12 +120,14 @@ namespace de.intronik.hashlinkcopy
             }
             // we have no previous directory or the file changed, use hash algorithm
             var hi = new HashInfo(path);
-            var hf = hi.GetHashPath(HashDir);
+            var hf = Path.GetFullPath(hi.GetHashPath(HashDir));
             // check if we need to copy the file
             if (!File.Exists(hf))
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(hf));
                 File.Copy(path, hf);
                 Monitor.CopyFile(path, hf, info.Length);
+                File.SetAttributes(hf, FileAttributes.Normal);
             }
             var hInfo = new FileInfo(hf);
             if (hInfo.Length != info.Length)
@@ -115,9 +142,15 @@ namespace de.intronik.hashlinkcopy
             else
                 Monitor.LinkFile(hf, tf, info.Length);
             // adjust file attributes and the last write time
-            File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
-            File.SetAttributes(tf, info.Attributes & (~FileAttributes.Archive));
-            File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+            try
+            {
+                File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
+                File.SetAttributes(tf, info.Attributes & (~FileAttributes.Archive));
+                File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+            }
+            catch
+            {
+            }
         }
     }
 }

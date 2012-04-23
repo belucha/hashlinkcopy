@@ -47,9 +47,11 @@
     <Compile Include="CommandBase.cs" />
     <Compile Include="CommandCopy.cs" />
     <Compile Include="CommandHelp.cs" />
+    <Compile Include="CommandReduce.cs" />
     <Compile Include="CommandTreeWalker.cs" />
     <Compile Include="ExcludeList.cs" />
     <Compile Include="HashInfo.cs" />
+    <Compile Include="CommandShrink.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="Monitor.cs" />
     <Compile Include="OptionAttribute.cs" />

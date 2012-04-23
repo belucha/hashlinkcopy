@@ -18,7 +18,7 @@ examples:
     {
         public string Folder { get; protected set; }
         public ExcludeList ExcludeList { get; private set; }
-        public string HashDir { get; private set; }
+        public string HashDir { get; protected set; }
 
         public CommandTreeWalker(IEnumerable<string> arguments, int parametersRequired)
             : base(arguments, parametersRequired, parametersRequired)
@@ -114,7 +114,7 @@ examples:
 
         public override void Run()
         {
-            ProcessFile(this.Folder, 0);
+            Process(0, this.Folder);
         }
 
     }
