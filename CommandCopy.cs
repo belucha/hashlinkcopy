@@ -31,8 +31,8 @@ namespace de.intronik.hashlinkcopy
             var target = parameters[1]
                 .Replace("%yyyy", now.Year.ToString("0000"))
                 .Replace("%YYYY", now.Year.ToString("0000"))
-                .Replace("%YY", now.Year.ToString("00"))
-                .Replace("%yy", now.Year.ToString("00"))
+                .Replace("%YY", (now.Year % 1000).ToString("00"))
+                .Replace("%yy", (now.Year % 1000).ToString("00"))
                 .Replace("%MM", now.Month.ToString("00"))
                 .Replace("%mm", now.Month.ToString("00"))
                 .Replace("%DD", now.Day.ToString("00"))
