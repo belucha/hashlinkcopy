@@ -158,7 +158,7 @@ namespace de.intronik.hashlinkcopy
             {
                 Root.Count(CounterType.linkedFiles);
                 Root.Count(CounterType.linkedBytes, size);
-                Logger.WriteLine(Logger.Verbosity.Message, "Link file '{0}' to '{1}'", source, dest);
+                Logger.WriteLine(Logger.Verbosity.Message, "Link file '{0}' to '{1}'", dest, source);
                 return true;
             }
             else

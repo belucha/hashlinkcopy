@@ -10,7 +10,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Intronik GmbH")]
 [assembly: AssemblyProduct("de.intronik.hashlinkcopy")]
-[assembly: AssemblyCopyright("(c) 2012 Intronik GmbH")]
+[assembly: AssemblyCopyright("(c) 2012 Intronik GmbH, Daniel Groß")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -29,5 +29,5 @@ using System.Runtime.InteropServices;
 //      Buildnummer
 //      Revision
 //
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.0.0")]
+[assembly: AssemblyFileVersion("1.2.0.0")]

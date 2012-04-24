@@ -11,27 +11,25 @@ namespace de.intronik.hashlinkcopy
     [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug")]
     abstract class CommandBase
     {
-        public List<string> Parameters { get; protected set; }
-        public CommandBase(IEnumerable<string> arguments, int minParameters, int maxParameters)
+        public virtual void Init(string[] parameters)
         {
-            this.Parameters = new List<string>();
-            this.InitOptions();
-            var optionsAvailable = OptionAttribute.List(this.GetType()).ToArray();
-            foreach (var argument in arguments)
-                if (argument.StartsWith("--"))
-                    this.ProcessOption(optionsAvailable.First(oa => oa.Match(argument))); // TODO: improve handling of invalidoperationexception
-                else
-                    this.Parameters.Add(argument);
-            if (this.Parameters.Count < minParameters)
-                throw new ArgumentOutOfRangeException(String.Format("{0} requires at least {1} parameter(s)!", this.GetType().Name, minParameters));
-            if (this.Parameters.Count > maxParameters)
-                throw new ArgumentOutOfRangeException(String.Format("{0} accepts no more than {1} parameter(s)!", this.GetType().Name, maxParameters));
         }
-        public abstract void Run();
 
-        protected virtual void InitOptions()
+        public virtual void ParseOptions(IEnumerable<string> options)
         {
+            var optionsAvailable = OptionAttribute.List(this.GetType()).ToArray();
+            foreach (var option in options)
+                try
+                {
+                    this.ProcessOption(optionsAvailable.First(oa => oa.Match(option)));
+                }
+                catch (Exception inner)
+                {
+                    throw new ApplicationException(String.Format("Invalid/Unknown option '{0}'!", option), inner);
+                }
         }
+
+        public abstract void Run();
 
         protected virtual void ProcessOption(OptionAttribute option)
         {
@@ -51,9 +49,9 @@ namespace de.intronik.hashlinkcopy
             }
         }
 
-        public static CommandBase CreateCommandHandler(IEnumerable<string> arguments)
+        public static CommandBase CreateCommandHandler(string command)
         {
-            return Activator.CreateInstance(GetCommandHandler(arguments.First()), arguments.Skip(1)) as CommandBase;
+            return Activator.CreateInstance(GetCommandHandler(command)) as CommandBase;
         }
 
         public static IEnumerable<Type> GetCommandList()

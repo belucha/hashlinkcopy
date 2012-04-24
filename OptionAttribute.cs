@@ -24,7 +24,7 @@ namespace de.intronik.hashlinkcopy
         {
             var splitted = option.Substring(2).Trim().Split(new char[] { ':', '=', }, 2);
             if (String.Compare(splitted[0], this.Name, true) != 0) return false;
-            this.Value = splitted[1].Trim();
+            this.Value = splitted.Length > 1 ? splitted[1].Trim() : "";
             return true;
         }
 

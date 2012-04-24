@@ -44,6 +44,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BackupFolder.cs" />
     <Compile Include="CommandBase.cs" />
     <Compile Include="CommandClean.cs" />
     <Compile Include="CommandCopy.cs" />

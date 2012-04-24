@@ -10,13 +10,6 @@ namespace de.intronik.hashlinkcopy
     [Description(@"tries to replace duplicates by hardlinks")]
     class CommandShrink : CommandTreeWalker
     {
-        public CommandShrink(IEnumerable<string> parameters)
-            : base(parameters, 1)
-        {
-            if (String.IsNullOrEmpty(this.HashDir))
-                this.HashDir = Path.Combine(this.Folder, ".\\..\\hash\\");
-        }
-
         protected override void ProcessFile(string path, int level)
         {
             var info = new FileInfo(path);

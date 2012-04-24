@@ -16,8 +16,10 @@ namespace de.intronik.hashlinkcopy
                 System.Windows.Forms.Application.CompanyName);
             try
             {
+                // separate options
+                var parameters = args.Where(arg => !arg.StartsWith("--")).ToArray();
                 // parse operation mode
-                if (args.Length < 1)
+                if (parameters.Length < 1)
                 {
                     Console.WriteLine("Usage:");
                     Console.WriteLine("\tHashLinkCopy.exe [{0}] [options] [parameters]",
@@ -25,7 +27,9 @@ namespace de.intronik.hashlinkcopy
                     return 1;
                 }
                 // get the operation mode
-                var command = CommandBase.CreateCommandHandler(args);
+                var command = CommandBase.CreateCommandHandler(parameters[0]);
+                command.Init(parameters.Skip(1).ToArray());
+                command.ParseOptions(args.Where(arg => arg.StartsWith("--")));
                 var start = DateTime.Now;
                 command.Run();
                 var et = DateTime.Now.Subtract(start);

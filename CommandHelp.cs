@@ -8,13 +8,15 @@ namespace de.intronik.hashlinkcopy
 {
     class CommandHelp : CommandBase
     {
-        public CommandHelp(IEnumerable<string> parameters)
-            : base(parameters, 0, 20)
+        string[] parameters;
+        public override void Init(string[] parameters)
         {
+            base.Init(parameters);
+            this.parameters = parameters;
         }
         public override void Run()
         {
-            foreach (var command in this.Parameters)
+            foreach (var command in this.parameters)
                 try
                 {
                     var t = GetCommandHandler(command);

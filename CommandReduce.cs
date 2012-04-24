@@ -24,8 +24,6 @@ namespace de.intronik.hashlinkcopy
     [Description("Removes old backup folders, based on the given rule set")]
     class CommandReduce : CommandBase
     {
-        string pattern;
-        Regex regPattern;
         public List<string> DeletedFolders { get; private set; }
         public bool EnableDelete { get; private set; }
         public int KeepMin { get; private set; }
@@ -33,15 +31,8 @@ namespace de.intronik.hashlinkcopy
         public string Folder { get; private set; }
 
 
-        public CommandReduce(IEnumerable<string> args)
-            : base(args, 1, 1)
+        public CommandReduce()
         {
-            this.Folder = Path.GetFullPath(this.Parameters[0]);
-            this.DeletedFolders = new List<string>();
-        }
-        protected override void InitOptions()
-        {
-            base.InitOptions();
             this.KeepMin = 30;
             this.Rules = new Rule[] {
                         new Rule(30, 1, Unit.day),
@@ -52,7 +43,17 @@ namespace de.intronik.hashlinkcopy
                         new Rule(10, 1, Unit.year),
                     };
             this.Pattern = @"*yyyy-mm-dd*";
+            this.DeletedFolders = new List<string>();
         }
+
+        public override void Init(string[] parameters)
+        {
+            base.Init(parameters);
+            if (parameters.Length != 1)
+                throw new ArgumentOutOfRangeException("Reduce requires exactly one target directory as parameter!");
+            this.Folder = Path.GetFullPath(parameters[0]);
+        }
+
         protected override void ProcessOption(OptionAttribute option)
         {
             base.ProcessOption(option);
@@ -76,33 +77,7 @@ namespace de.intronik.hashlinkcopy
                 this.KeepMin = (int)ushort.Parse(option.Value);
         }
 
-        public string Pattern
-        {
-            get { return pattern; }
-            set
-            {
-                this.pattern = value;
-                this.regPattern = new Regex("^" + Regex.Escape(this.pattern).ToLower()
-                    .Replace("yyyy", @"(?<YYYY>\d\d\d\d)")
-                    .Replace("yy", @"(?<YY>\d\d)")
-                    .Replace("mm", @"(?<MM>\d\d)")
-                    .Replace("dd", @"(?<DD>\d\d)")
-                    .Replace("\\*", ".*")
-                    .Replace("\\?", ".")
-                    + "$",
-                    RegexOptions.ExplicitCapture | RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            }
-        }
-
-        class BackupFolder
-        {
-            public string Folder { get; set; }
-            public DateTime BackupDate { get; set; }
-            public override string ToString()
-            {
-                return String.Format("{0:yyyy-MM-dd} {1}", BackupDate, Folder);
-            }
-        }
+        public string Pattern { get; protected set; }
 
         public enum Unit
         {
@@ -144,46 +119,9 @@ namespace de.intronik.hashlinkcopy
             }
         }
 
-        IEnumerable<BackupFolder> GetBackups()
-        {
-            foreach (var subDir in Directory.GetDirectories(this.Folder))
-            {
-                var match = this.regPattern.Match(Path.GetFileName(subDir));
-                if (!match.Success) continue;
-                var year = DateTime.Now.Year;
-                var month = 1;
-                var day = 1;
-                if (!String.IsNullOrEmpty(match.Groups["YYYY"].Value))
-                    year = int.Parse(match.Groups["YYYY"].Value);
-                else
-                    if (!String.IsNullOrEmpty(match.Groups["YY"].Value))
-                        year = 2000 + int.Parse(match.Groups["YY"].Value);
-
-                if (!String.IsNullOrEmpty(match.Groups["MM"].Value))
-                    month = int.Parse(match.Groups["MM"].Value);
-                if (!String.IsNullOrEmpty(match.Groups["DD"].Value))
-                    day = int.Parse(match.Groups["DD"].Value);
-                DateTime backupDate;
-                try
-                {
-                    backupDate = new DateTime(year, month, day);
-                }
-                catch (Exception)
-                {
-                    // ignore folder, invalid date format
-                    continue;
-                }
-                yield return new BackupFolder()
-                {
-                    Folder = subDir,
-                    BackupDate = backupDate,
-                };
-            }
-        }
-
         public override void Run()
         {
-            var backups = GetBackups().OrderByDescending(b => b.BackupDate).ToList();
+            var backups = BackupFolder.GetBackups(this.Folder, this.Pattern).OrderByDescending(b => b.BackupDate).ToList();
             if (backups.Count < 1)
             {
                 Logger.Warning("No backups found, that match the specified pattern {0}!", Pattern);

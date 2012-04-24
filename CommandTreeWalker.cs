@@ -7,30 +7,31 @@ using System.Text.RegularExpressions;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Option("HashDir", Help = "location of the hashes", Description = @"defaults to targetpath\..\Hash\")]
     [Option("Exclude", Help = @"Exclude rules", Description = @"either an inline list separated by |, or a filename prceeded by @
 examples:
 --Exclude:""*.exe|bin\|*.bak""      excludes all executables and *.bak and the bin folders
 --Exclude:@excludeFiles.txt         excludes all patterns listed in each line of excludeFiles.txt
 ")]
-    [Option(@"HashCacheLimit", Help = @"Enables the SHA1 caching for files larger than the given size", Default = "4MB")]
+    [Option(@"HashCacheLimit", Help = @"Enables the SHA1 caching for files larger than the given size", Default = "4kB")]
+    [Option("HashDir", Help = "location of the hashes", Default = @"..\Hash\")]
     abstract class CommandTreeWalker : CommandBase
     {
         public string Folder { get; protected set; }
         public ExcludeList ExcludeList { get; private set; }
         public string HashDir { get; protected set; }
 
-        public CommandTreeWalker(IEnumerable<string> arguments, int parametersRequired)
-            : base(arguments, parametersRequired, parametersRequired)
+        public CommandTreeWalker()
         {
-            this.Folder = this.Parameters[0];
+            this.ExcludeList = new ExcludeList();
         }
 
-        protected override void InitOptions()
+        public override void Init(string[] parameters)
         {
-            base.InitOptions();
-            this.ExcludeList = new ExcludeList();
-            HashInfo.CacheLimit = 4 << 20;  // 4Mbyte
+            base.Init(parameters);
+            if (parameters.Length < 1)
+                throw new ArgumentOutOfRangeException("Directory parameter is missing!");
+            this.Folder = Path.GetFullPath(parameters[0]);
+            this.HashDir = Path.GetFullPath(Path.Combine(this.Folder, "..\\Hash\\"));
         }
 
         protected override void ProcessOption(OptionAttribute option)
@@ -40,17 +41,22 @@ examples:
             else if (option.Name == "Exclude") this.ExcludeList = new ExcludeList(option.Value);
             else if (option.Name == "HashCacheLimit")
             {
-                var m = Regex.Match(option.Value, @"^(?<size>\d+)\s*((?<unit>k|m|g)(b|byte)?)?\s*$",
-                    RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
-                var u = m.Groups["unit"].Value;
-                long f = 1;
-                if (!String.IsNullOrEmpty(u))
+                if (String.Compare(option.Value, "disabled", true) == 0)
+                    HashInfo.CacheLimit = long.MaxValue;
+                else
                 {
-                    if (u.ToLower() == "k") f = 1024;
-                    else if (u.ToLower() == "m") f = 1 << 20;
-                    else if (u.ToLower() == "g") f = 1 << 30;
+                    var m = Regex.Match(option.Value, @"^(?<size>\d+)\s*((?<unit>k|m|g)(b|byte)?)?\s*$",
+                        RegexOptions.ExplicitCapture | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
+                    var u = m.Groups["unit"].Value;
+                    long f = 1;
+                    if (!String.IsNullOrEmpty(u))
+                    {
+                        if (u.ToLower() == "k") f = 1024;
+                        else if (u.ToLower() == "m") f = 1 << 20;
+                        else if (u.ToLower() == "g") f = 1 << 30;
+                    }
+                    HashInfo.CacheLimit = long.Parse(m.Groups["size"].Value) * f;
                 }
-                HashInfo.CacheLimit = long.Parse(m.Groups["size"].Value) * f;
             }
         }
 

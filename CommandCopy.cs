@@ -7,64 +7,48 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Description(@"copies one directory into another")]
+    [Description(@"copies one directory into another %yyyy%mm%dd can be used in the target path")]
     [Option(@"SkipLevel", Help = @"Skip existing folders at given path recursion depth")]
-    [Option(@"PreviousFolders", Help = @"Pattern to match previous backup folders")]
+    [Option(@"PrevBackupFolderMask", Help = @"Pattern to match previous backup folders", Default = @"*YYYY-MM-DD*")]
+    [Option(@"PrevBackupFolderRoot", Help = @"Root folder for backups", Default = @"")]
     class CommandCopy : CommandTreeWalker
     {
         public string Target { get; private set; }
         public string PreviousBackup { get; private set; }
+        public string PrevBackupFolderMask { get; private set; }
+        public string PrevBackupFolderRoot { get; private set; }
         public int SkipLevel { get; private set; }
 
-        public CommandCopy(IEnumerable<string> parameters)
-            : base(parameters, 2)
+        public override void Init(string[] parameters)
         {
+            base.Init(parameters);
+            this.PrevBackupFolderMask = @"*YYYY-MM-DD*";
+            this.PrevBackupFolderRoot = null;
             // try to replace any stuff in target folder
-            var targetFolder = Parameters[1];
-            var startP = targetFolder.IndexOf('{');
-            if (startP >= 0)
-            {
-                string format;
-                var endP = targetFolder.IndexOf('}', startP + 1);
-                if (endP >= 0)
-                {
-                    format = targetFolder.Substring(startP + 1, endP - startP - 1).Trim();
-                    if (format.Length == 0) format = "yyyy-MM-dd_HH_mm_ss";
-                    targetFolder = targetFolder.Substring(0, startP) + DateTime.Now.ToString(format) + targetFolder.Substring(endP + 1);
-                    // search for old backups
-                    if (this.PreviousBackup == null)
-                    {
-                        string newestFolder = null;
-                        DateTime newestFolderDate = DateTime.MinValue;
-                        foreach (var subDir in Directory.GetDirectories(Path.Combine(targetFolder, ".\\..\\")))
-                        {
-                            var name = Path.GetFileName(subDir);
-                            DateTime folderTime;
-                            if (DateTime.TryParseExact(name, format, System.Globalization.CultureInfo.CurrentCulture, System.Globalization.DateTimeStyles.None, out folderTime))
-                            {
-                                if (folderTime >= newestFolderDate)
-                                {
-                                    newestFolder = subDir;
-                                    newestFolderDate = folderTime;
-                                }
-                            }
-                        }
-                        if (newestFolderDate > DateTime.MinValue)
-                        {
-                            this.PreviousBackup = Path.GetFullPath(newestFolder);
-                            Logger.WriteLine(Logger.Verbosity.Message, "Previous backup folder is: {0}", this.PreviousBackup);
-                        }
-                    }
-                }
-            }
-            this.Target = Path.GetFullPath(targetFolder);
-            if (String.IsNullOrEmpty(this.HashDir))
-                this.HashDir = Path.GetFullPath(Path.Combine(this.Target, "..\\Hashs\\"));
-        }
-
-        protected override void InitOptions()
-        {
-            base.InitOptions();
+            if (parameters.Length != 2)
+                throw new ArgumentOutOfRangeException("Excactly 2 parameters (Source folder and target folder) are required for COPY!");
+            var now = DateTime.Now;
+            var target = parameters[1]
+                .Replace("%yyyy", now.Year.ToString("0000"))
+                .Replace("%YYYY", now.Year.ToString("0000"))
+                .Replace("%YY", now.Year.ToString("00"))
+                .Replace("%yy", now.Year.ToString("00"))
+                .Replace("%MM", now.Month.ToString("00"))
+                .Replace("%mm", now.Month.ToString("00"))
+                .Replace("%DD", now.Day.ToString("00"))
+                .Replace("%dd", now.Day.ToString("00"))
+                .Replace("%HH", now.Hour.ToString("00"))
+                .Replace("%hh", now.Hour.ToString("00"))
+                .Replace("%NN", now.Minute.ToString("00"))
+                .Replace("%nn", now.Minute.ToString("00"))
+                .Replace("%SS", now.Second.ToString("00"))
+                .Replace("%ss", now.Second.ToString("00"))
+                .Replace("%%", "%");
+            if (target.IndexOf('%') >= 0)
+                throw new ArgumentOutOfRangeException("Unknown escape sequence in target path {0}", target);
+            this.Target = Path.GetFullPath(target);
+            // hashdir is now relative to the target path
+            this.HashDir = Path.GetFullPath(Path.Combine(this.Target, "..\\Hash\\"));
             this.PreviousBackup = null;
             this.SkipLevel = int.MaxValue;
         }
@@ -73,6 +57,8 @@ namespace de.intronik.hashlinkcopy
         {
             base.ProcessOption(option);
             if (option.Name == "SkipLevel") this.SkipLevel = int.Parse(option.Value);
+            else if (option.Name == "PrevBackupFolderMask") this.PrevBackupFolderMask = option.Value;
+            else if (option.Name == "PrevBackupFolderRoot") this.PrevBackupFolderRoot = Path.GetFullPath(option.Value);
         }
 
         protected override bool CancelEnterDirectory(string path, int level)
@@ -147,6 +133,23 @@ namespace de.intronik.hashlinkcopy
             catch
             {
             }
+        }
+
+        public override void Run()
+        {
+            // search for old backups
+            if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
+            {
+                var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.PrevBackupFolderMask).OrderByDescending(backup => backup.BackupDate).ToArray();
+                Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.PrevBackupFolderMask);
+                if (backups.Length > 0)
+                {
+                    var newestBackup = backups[0];
+                    this.PreviousBackup = newestBackup.Folder;
+                    Logger.WriteLine(Logger.Verbosity.Message, "Previous backup folder is {0}", newestBackup);
+                }
+            }
+            base.Run();
         }
     }
 }
