@@ -1,0 +1,6 @@
+30 for each day
+4 for each week
+8 for each 2 week
+4 for each month
+4 for each 6 month
+20 for each year

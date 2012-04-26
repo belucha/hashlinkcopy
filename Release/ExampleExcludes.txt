@@ -1,0 +1,5 @@
+; Comment line
+*\tmp\    ; exclude all tmp directories
+*.exe     ; exclude all executables
+*.bak
+hello.e?e ; any char can be instead of the ?
