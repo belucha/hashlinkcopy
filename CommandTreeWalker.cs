@@ -69,6 +69,15 @@ examples:
         {
             return false;
         }
+
+        /// <summary>
+        /// Called, when processing a directory is completed
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="level"></param>
+        protected virtual void LeaveDirectory(string path, int level)
+        {
+        }
         /// <summary>
         /// 
         /// </summary>
@@ -130,6 +139,11 @@ examples:
                 //
                 foreach (var subDir in Directory.GetDirectories(path))
                     this.Process(subDir, level + 1);
+                
+                //
+                // LEAVE DIR
+                //
+                this.LeaveDirectory(path, level);
             }
             catch (Exception error)
             {

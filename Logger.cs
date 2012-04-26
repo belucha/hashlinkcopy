@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,7 +20,13 @@ namespace de.intronik.hashlinkcopy
 
         public static int ErrorCount { get; set; }
         public static int WarningCount { get; set; }
-        public static Verbosity VERBOSITY = Verbosity.Warning;
+        public static Verbosity VERBOSITY = Verbosity.Message;
+        public static Verbosity LOGVERB = Verbosity.Message;
+        public static TextWriter LOGFILE = null;
+        public static void AddLogFile(string filename)
+        {
+            LOGFILE = new StreamWriter(filename, true);
+        }
         public static void Error(string format, params object[] args)
         {
             Logger.ErrorCount++;
@@ -34,8 +41,11 @@ namespace de.intronik.hashlinkcopy
         }
         public static void WriteLine(Verbosity verbosity, string format, params object[] args)
         {
+            var s = String.Format("{0}: ", verbosity) + format;
             if (Logger.VERBOSITY >= verbosity)
-                Console.WriteLine(String.Format("{0}: ", verbosity) + format, args);
+                Console.WriteLine(s, args);
+            if (Logger.LOGVERB >= verbosity && Logger.LOGFILE != null)
+                Logger.LOGFILE.WriteLine(s, args);
         }
     }
 }

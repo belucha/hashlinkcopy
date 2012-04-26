@@ -87,13 +87,21 @@ namespace de.intronik.hashlinkcopy
         }
 
         /// <summary>
-        /// returns true, when the file is a valid hash char
+        /// Returns the has
         /// </summary>
         /// <param name="path"></param>
         /// <returns></returns>
-        public static bool IsValidHashPath(string path)
+        public static string CheckAndCorrectHashPath(string path)
         {
-            return path.ToCharArray().Reverse().Where(c => c != '\\' && c != '/').Take(40).All(c => Char.IsDigit(c) || (Char.ToLower(c) <= 'f' && Char.ToLower(c) >= 'a'));
+            // entferne alle pfadzeichen und prüfe
+            var cleaned = path.Where(c => c != '\\').ToArray();
+            if (cleaned.Length != 40 || cleaned.Any(c => (!Char.IsDigit(c)) && (Char.ToLower(c) > 'f' || Char.ToLower(c) < 'a'))) return null;
+            // it is a valid has path, check if the folder separators are at the correct position
+            if (path[2] == '\\' && path[5] == '\\' && path.Length == 42) return "";
+            var b = new StringBuilder(new String(cleaned), 42);
+            b.Insert(2, '\\');
+            b.Insert(5, '\\');
+            return b.ToString();
         }
 
         public string GetHashPath(string basePath)
@@ -102,19 +110,10 @@ namespace de.intronik.hashlinkcopy
             // 0123456789012345678901234567890123456789
             // 0         1         2         3
             // a78733087ab883cf8923ca893123affbcd770012
-            s.Insert(40 - (5), '\\');
-            s.Insert(40 - (10), '\\');
-            s.Insert(40 - (15), '\\');
-            s.Insert(40 - (20), '\\');
-            s.Insert(40 - (23), '\\');
-            s.Insert(40 - (26), '\\');
-            s.Insert(40 - (29), '\\');
-            s.Insert(40 - (32), '\\');
-            s.Insert(40 - (34), '\\');
             s.Insert(40 - (36), '\\');
             s.Insert(40 - (38), '\\');
             // we should a obtain a value hashgrouping of
-            // a7\87\33\08\7ab\883\cf8\923\ca893\123af\fbcd7\70012
+            // a7\87\33087ab883cf8923ca893123affbcd770012
             return Path.Combine(basePath, s.ToString());
         }
     }

@@ -8,24 +8,21 @@ using System.Text.RegularExpressions;
 
 namespace de.intronik.hashlinkcopy
 {
-
-    /* sample reduce rules file:
-14 times every day
-5 times each week
-10 times every month
-10 times each 6 month
-10 times each year
-*/
-
-    [Option("Pattern")]
-    [Option("KeepMin")]
-    [Option("Enable", Help = "Enable delete operation")]
-    [Option("RuleFile")]
-    [Description("Removes old backup folders, based on the given rule set")]
+    [Option("Pattern", Help = "Pattern to match for backup folders", Description = @"The backup folder date time pattern that is matched
+e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "*YYYY-MM-DD*")]
+    [Option("KeepMin", Help = "minimum number of backups to keep", Default = "30")]
+    [Option("RuleFile", Help = "Name of a rule file", Description = "A rule file contains a set of rules.", Default = "None => default rules")]
+    [Description(@"Removes old backup folders, based on the given rule set.
+Default rules are:
+    30 each day
+    8 each week
+    4 each month
+    4 each 3 month
+    2 each 6 month
+    10 each year")]
     class CommandReduce : CommandBase
     {
         public List<string> DeletedFolders { get; private set; }
-        public bool EnableDelete { get; private set; }
         public int KeepMin { get; private set; }
         public Rule[] Rules { get; private set; }
         public string Folder { get; private set; }
@@ -42,7 +39,7 @@ namespace de.intronik.hashlinkcopy
                         new Rule(2, 6, Unit.month),
                         new Rule(10, 1, Unit.year),
                     };
-            this.Pattern = @"*yyyy-mm-dd*";
+            this.Pattern = @"*YYYY-MM-DD*";
             this.DeletedFolders = new List<string>();
         }
 
@@ -69,8 +66,6 @@ namespace de.intronik.hashlinkcopy
                     .ToArray();
                 this.Rules = lines.Select(line => new Rule(line)).OrderBy(rule => rule.Interval).ToArray();
             }
-            else if (option.Name == "Enable")
-                this.EnableDelete = String.IsNullOrEmpty(option.Value) ? true : bool.Parse(option.Value);
             else if (option.Name == "Pattern")
                 this.Pattern = option.Value;
             else if (option.Name == "KeepMin")
@@ -156,10 +151,7 @@ namespace de.intronik.hashlinkcopy
                 var start = DateTime.Now;
                 try
                 {
-                    if (this.EnableDelete)
-                        Directory.Delete(f, true);
-                    else
-                        Logger.WriteLine(Logger.Verbosity.Warning, "Deleting is disabled! Enable with option --EnableDelete");
+                    Monitor.DeleteDirectory(f);
                     Logger.WriteLine(Logger.Verbosity.Message, "...completed after {0}", DateTime.Now.Subtract(start));
                 }
                 catch (Exception error)

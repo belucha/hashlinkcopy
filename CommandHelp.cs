@@ -16,6 +16,15 @@ namespace de.intronik.hashlinkcopy
         }
         public override void Run()
         {
+            if (parameters.Length == 0)
+            {
+                Console.WriteLine(
+@"HELP:
+=====
+
+HashLinkCopy bla bla
+");
+            }
             foreach (var command in this.parameters)
                 try
                 {
@@ -25,7 +34,16 @@ namespace de.intronik.hashlinkcopy
                     Console.WriteLine("{0}:\n\t{1}", command, description != null ? description.Description : "NO DESCRIPTION AVAILABLE");
                     Console.WriteLine("Options:");
                     foreach (var option in OptionAttribute.List(t))
-                        Console.WriteLine("\t{0,-20}{1}\n\t{2,20}{3}", "--" + option.Name, option.Help, "...", option.Description);
+                    {
+                        Console.WriteLine("\t{0,-40}{1}", "--" + option.Name, option.Help);
+                        Console.WriteLine("\t{0,40}{1}", "Default:", option.Default);
+                        bool first = true;
+                        foreach (var dl in option.Description.Split('\n'))
+                        {
+                            Console.WriteLine("\t{0,40}{1}", first ? "Description:" : "", dl);
+                            first = false;
+                        }
+                    }
                 }
                 catch (Exception)
                 {

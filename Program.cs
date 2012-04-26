@@ -22,8 +22,13 @@ namespace de.intronik.hashlinkcopy
                 if (parameters.Length < 1)
                 {
                     Console.WriteLine("Usage:");
-                    Console.WriteLine("\tHashLinkCopy.exe [{0}] [options] [parameters]",
-                        String.Join("|", CommandBase.GetCommandList().Select(t => t.Name.Substring("Command".Length)).ToArray()));
+                    Console.WriteLine("\tHashLinkCopy.exe [{0}] [--Option1[:Value1] --Option2[=Value2]] [parameters]",
+                        String.Join("|", CommandBase.GetCommandList().Select(t => t.Name.Substring("Command".Length).ToUpper()).ToArray()));
+                    Console.WriteLine("General Help:");
+                    Console.WriteLine("\tHashLinkCopy.exe HELP");
+                    Console.WriteLine("Help on specific command:");
+                    Console.WriteLine("\tHashLinkCopy.exe HELP COMMAND");
+                    Console.WriteLine("\te.g. HashLinkCopy.exe HELP COPY");
                     return 1;
                 }
                 // get the operation mode
@@ -35,21 +40,24 @@ namespace de.intronik.hashlinkcopy
                 var et = DateTime.Now.Subtract(start);
                 if (command.GetType() != typeof(CommandHelp))
                 {
-                    Console.WriteLine("Total time {0}", et);
-                    Monitor.PrintStatistics(Console.Out);
+                    Logger.WriteLine(Logger.Verbosity.Message, "Total time {0}", et);
+                    Monitor.PrintStatistics();
                 }
+                if (Logger.LOGFILE != null)
+                    Logger.LOGFILE.Dispose();
                 return 0;
             }
             catch (System.Reflection.TargetInvocationException error)
             {
                 Logger.Error("{0}: {1}", error.InnerException.GetType().Name, error.InnerException.Message);
-                return 2;
             }
             catch (Exception error)
             {
                 Logger.Error("{0}: {1}", error.GetType().Name, error.Message);
-                return 2;
             }
+            if (Logger.LOGFILE != null)
+                Logger.LOGFILE.Dispose();
+            return 2;
         }
     }
 }

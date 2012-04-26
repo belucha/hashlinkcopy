@@ -8,7 +8,10 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug")]
+    [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
+    [Option("DryRun", Help = "Disables any disk operations")]
+    [Option("LogFile", Help = "Additional log file", Description = "Saves the LogVerbosity output to the logfile", Default = "None")]
+    [Option("LogVerb", Help = "verbosity of the log file messages", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
     abstract class CommandBase
     {
         public virtual void Init(string[] parameters)
@@ -35,6 +38,12 @@ namespace de.intronik.hashlinkcopy
         {
             if (option.Name == "Verbosity")
                 Logger.VERBOSITY = (Logger.Verbosity)Enum.Parse(typeof(Logger.Verbosity), option.Value, true);
+            if (option.Name == "LogVerb")
+                Logger.LOGVERB = (Logger.Verbosity)Enum.Parse(typeof(Logger.Verbosity), option.Value, true);
+            if (option.Name == "LogFile")
+                Logger.AddLogFile(option.Value);
+            if (option.Name == "DryRun")
+                Monitor.Root.DryRun = String.IsNullOrEmpty(option.Value) ? true : bool.Parse(option.Value);
         }
 
         public static Type GetCommandHandler(string command)

@@ -10,7 +10,7 @@ namespace de.intronik.hashlinkcopy
     public class Monitor
     {
         public static Monitor Root = new Monitor();
-        bool enabled = true;
+        public bool DryRun { get; set; }
         const string _pcCategory = @"HashLinkCopy";
 
         enum CounterType
@@ -99,14 +99,14 @@ namespace de.intronik.hashlinkcopy
             {
                 if (!PerformanceCounterCategory.Exists(_pcCategory) || this.counters.Any(counter => counter.RecreatePcRequired()))
                 {
-                    Console.WriteLine("Creating performance counters...");
+                    Logger.WriteLine(Logger.Verbosity.Verbose, "Creating performance counters...");
                     if (PerformanceCounterCategory.Exists(_pcCategory))
                         PerformanceCounterCategory.Delete(_pcCategory);
                     PerformanceCounterCategory.Create(_pcCategory, @"HashLinkCopy performance counter", PerformanceCounterCategoryType.SingleInstance, new CounterCreationDataCollection(this.counters.SelectMany(c => c.CreateCounters()).ToArray()));
-                    Console.WriteLine("...succcess!");
+                    Logger.WriteLine(Logger.Verbosity.Verbose, "...succcess!");
                 }
                 else
-                    Console.WriteLine("Performance already registered!");
+                    Logger.WriteLine(Logger.Verbosity.Verbose, "Performance already registered!");
                 foreach (var c in this.counters)
                     c.CreatePc();
             }
@@ -147,14 +147,14 @@ namespace de.intronik.hashlinkcopy
         }
         public static void CopyFile(string source, string dest, long size)
         {
-            if (Root.enabled) File.Copy(source, dest);
+            if (!Root.DryRun) File.Copy(source, dest);
             Root.Count(CounterType.copiedFiles);
             Root.Count(CounterType.copiedBytes, size);
             Logger.WriteLine(Logger.Verbosity.Message, "Copy file '{0}' to '{1}'", source, dest);
         }
         public static bool LinkFile(string source, string dest, long size)
         {
-            if ((!Root.enabled) || Win32.CreateHardLink(dest, source, IntPtr.Zero))
+            if (Root.DryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero))
             {
                 Root.Count(CounterType.linkedFiles);
                 Root.Count(CounterType.linkedBytes, size);
@@ -168,24 +168,28 @@ namespace de.intronik.hashlinkcopy
         public static void DeleteDirectory(string path)
         {
             // TODO add counter
-            if (Root.enabled) Directory.Delete(path, true);
+            Logger.WriteLine(Logger.Verbosity.Message, "Deleting directory '{0}'", path);
+            if (!Root.DryRun)
+                Directory.Delete(path, true);
         }
 
         public static void DeleteFile(string path)
         {
             // TODO add counter
-            if (Root.enabled) File.Delete(path);
+            Logger.WriteLine(Logger.Verbosity.Message, "Deleting file '{0}'", path);
+            if (!Root.DryRun) File.Delete(path);
         }
 
         public static void CreateDirectory(string path)
         {
             // TODO add counter
-            if (Root.enabled) Directory.CreateDirectory(path);
+            Logger.WriteLine(Logger.Verbosity.Verbose, "Creating Directory '{0}'", path);
+            if (!Root.DryRun) Directory.CreateDirectory(path);
         }
 
         public static void MoveFile(string source, string dest, long size)
         {
-            if (Root.enabled) File.Move(source, dest);
+            if (!Root.DryRun) File.Move(source, dest);
             Root.Count(CounterType.movedFiles);
             Root.Count(CounterType.movedBytes, size);
             Logger.WriteLine(Logger.Verbosity.Message, "Moving file '{0}' to '{1}'", source, dest);
@@ -207,10 +211,10 @@ namespace de.intronik.hashlinkcopy
             Logger.Error("{0}:{1} processing '{2}'", error.GetType().Name, error.Message, path);
         }
 
-        public static void PrintStatistics(TextWriter w)
+        public static void PrintStatistics()
         {
             foreach (var c in Root.counters)
-                w.WriteLine("{0,-20}: {1}", c.CounterType, c.Count);
+                Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", c.CounterType, c.Count);
         }
     }
 

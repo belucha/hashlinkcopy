@@ -7,7 +7,15 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Description(@"copies one directory into another %yyyy%mm%dd can be used in the target path")]
+    [Description(@"copies one directory into the target path
+Allowed target path date placeholders are
+%YY\ttwo digits for the year
+%YYYY\tfour digits for the year
+%MM\tthe current month
+%DD\tthe current day
+%HH\tthe current hour
+%NN\tthe current minute
+")]
     [Option(@"SkipLevel", Help = @"Skip existing folders at given path recursion depth")]
     [Option(@"PrevBackupFolderMask", Help = @"Pattern to match previous backup folders", Default = @"*YYYY-MM-DD*")]
     [Option(@"PrevBackupFolderRoot", Help = @"Root folder for backups", Default = @"")]
