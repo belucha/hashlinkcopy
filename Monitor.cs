@@ -27,6 +27,7 @@ namespace de.intronik.hashlinkcopy
             linkedBytes,
             hashedBytes,
             movedBytes,
+            deletedFiles,
             collisions,
             errors,
             max,
@@ -165,24 +166,32 @@ namespace de.intronik.hashlinkcopy
                 return false;
         }
 
+        private static void DeleteFileSystemInfo(FileSystemInfo fsi)
+        {
+            if (!Root.DryRun)
+                fsi.Attributes = FileAttributes.Normal;
+            var di = fsi as DirectoryInfo;
+            Root.Count(CounterType.deletedFiles);
+            Logger.WriteLine(Logger.Verbosity.Message, "Deleting '{0}'", fsi.Name);
+            if (di != null)
+                foreach (var dirInfo in di.GetFileSystemInfos())
+                    DeleteFileSystemInfo(dirInfo);
+            if (!Root.DryRun)
+                fsi.Delete();
+        }
+
         public static void DeleteDirectory(string path)
         {
-            // TODO add counter
-            Logger.WriteLine(Logger.Verbosity.Message, "Deleting directory '{0}'", path);
-            if (!Root.DryRun)
-                Directory.Delete(path, true);
+            Monitor.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
         public static void DeleteFile(string path)
         {
-            // TODO add counter
-            Logger.WriteLine(Logger.Verbosity.Message, "Deleting file '{0}'", path);
-            if (!Root.DryRun) File.Delete(path);
+            Monitor.DeleteFileSystemInfo(new FileInfo(path));
         }
 
         public static void CreateDirectory(string path)
         {
-            // TODO add counter
             Logger.WriteLine(Logger.Verbosity.Verbose, "Creating Directory '{0}'", path);
             if (!Root.DryRun) Directory.CreateDirectory(path);
         }

@@ -134,9 +134,14 @@ Allowed target path date placeholders are
             // adjust file attributes and the last write time
             try
             {
-                File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
-                File.SetAttributes(tf, info.Attributes & (~FileAttributes.Archive));
-                File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+                if (!Monitor.Root.DryRun)
+                {
+                    // make sure the backed up files have identical attributes and write times as the original
+                    File.SetAttributes(path, info.Attributes);
+                    File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
+                    // remove the archive attribute of the original file
+                    File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+                }
             }
             catch
             {
