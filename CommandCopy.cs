@@ -7,56 +7,34 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Description(@"copies one directory into the target path
-Allowed target path date placeholders are
-%YY\ttwo digits for the year
-%YYYY\tfour digits for the year
-%MM\tthe current month
-%DD\tthe current day
-%HH\tthe current hour
-%NN\tthe current minute
+    [Description(@"copies one directory into the target path. An wildcard character * is replaced by the formatted date/time
+
+Usage example:
+    HashLinkCopy.exe COPY D:\Projekte Z:\Backup\*\Projekte\
+        Makes a backup of D:\Projekte to Z:\Backup\YYYY-MM-DD_HH.NN\Projekte and uses Z:\Backup\Hash as hash folder
 ")]
     [Option(@"SkipLevel", Help = @"Skip existing folders at given path recursion depth")]
-    [Option(@"PrevBackupFolderMask", Help = @"Pattern to match previous backup folders", Default = @"*YYYY-MM-DD*")]
     [Option(@"PrevBackupFolderRoot", Help = @"Root folder for backups", Default = @"")]
+    [Option(@"Pattern", Help = @"Date formatting used to replace the * wild card in the target path", Default = @"YYYY-MM-DD_HH.NN")]
     class CommandCopy : CommandTreeWalker
     {
         public string Target { get; private set; }
         public string PreviousBackup { get; private set; }
-        public string PrevBackupFolderMask { get; private set; }
+        public string Pattern { get; private set; }
         public string PrevBackupFolderRoot { get; private set; }
         public int SkipLevel { get; private set; }
 
         public override void Init(string[] parameters)
         {
             base.Init(parameters);
-            this.PrevBackupFolderMask = @"*YYYY-MM-DD*";
+            this.Pattern = @"YYYY-MM-DD_HH.NN";
             this.PrevBackupFolderRoot = null;
             // try to replace any stuff in target folder
             if (parameters.Length != 2)
                 throw new ArgumentOutOfRangeException("Excactly 2 parameters (Source folder and target folder) are required for COPY!");
             var now = DateTime.Now;
-            var target = parameters[1]
-                .Replace("%yyyy", now.Year.ToString("0000"))
-                .Replace("%YYYY", now.Year.ToString("0000"))
-                .Replace("%YY", (now.Year % 1000).ToString("00"))
-                .Replace("%yy", (now.Year % 1000).ToString("00"))
-                .Replace("%MM", now.Month.ToString("00"))
-                .Replace("%mm", now.Month.ToString("00"))
-                .Replace("%DD", now.Day.ToString("00"))
-                .Replace("%dd", now.Day.ToString("00"))
-                .Replace("%HH", now.Hour.ToString("00"))
-                .Replace("%hh", now.Hour.ToString("00"))
-                .Replace("%NN", now.Minute.ToString("00"))
-                .Replace("%nn", now.Minute.ToString("00"))
-                .Replace("%SS", now.Second.ToString("00"))
-                .Replace("%ss", now.Second.ToString("00"))
-                .Replace("%%", "%");
-            if (target.IndexOf('%') >= 0)
-                throw new ArgumentOutOfRangeException("Unknown escape sequence in target path {0}", target);
-            this.Target = Path.GetFullPath(target);
-            // hashdir is now relative to the target path
-            this.HashDir = Path.GetFullPath(Path.Combine(this.Target, "..\\Hash\\"));
+            this.Target = parameters[1];
+            this.HashDir = null;
             this.PreviousBackup = null;
             this.SkipLevel = int.MaxValue;
         }
@@ -64,9 +42,9 @@ Allowed target path date placeholders are
         protected override void ProcessOption(OptionAttribute option)
         {
             base.ProcessOption(option);
-            if (option.Name == "SkipLevel") this.SkipLevel = int.Parse(option.Value);
-            else if (option.Name == "PrevBackupFolderMask") this.PrevBackupFolderMask = option.Value;
-            else if (option.Name == "PrevBackupFolderRoot") this.PrevBackupFolderRoot = Path.GetFullPath(option.Value);
+            if (option.Name == "SkipLevel") this.SkipLevel = (int)option.ParseAsLong(new KeyValuePair<string, long>("disabled", int.MaxValue), new KeyValuePair<string, long>("off", int.MaxValue));
+            else if (option.Name == "Pattern") this.Pattern = option.ParseAsString();
+            else if (option.Name == "PrevBackupFolderRoot") this.PrevBackupFolderRoot = option.Value;
         }
 
         protected override bool CancelEnterDirectory(string path, int level)
@@ -158,18 +136,44 @@ Allowed target path date placeholders are
 
         public override void Run()
         {
+            // format the target directory
+            if (!this.Target.EndsWith("\\")) this.Target += "\\";
+            var wildCardPos = this.Target.IndexOf(@"\*\");
+            string backupFolderSuffix = "";
+            if (wildCardPos >= 0)
+            {
+                if (String.IsNullOrEmpty(HashDir))
+                    this.HashDir = Path.Combine(this.Target.Substring(0, wildCardPos), "Hash");
+                if (String.IsNullOrEmpty(this.PrevBackupFolderRoot))
+                {
+                    this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos);
+                    backupFolderSuffix = this.Target.Substring(wildCardPos + 3);
+                }
+                this.Target = this.Target.Replace(@"\*\", @"\" + DateTime.Now.ToString(this.Pattern.ToLower().Replace("mm", "MM").Replace("nn", "mm").Replace("nn", "mm")) + @"\");
+                if (this.Target.IndexOf('*') >= 0)
+                    throw new InvalidOperationException("The target folder may only contain one date/time wildcard * and must be surrounded by \\!");
+            }
+            else
+                this.HashDir = Path.GetFullPath(Path.Combine(this.Target, @"..\Hash"));
+            this.Target = Path.GetFullPath(this.Target);
+            this.HashDir = Path.GetFullPath(this.HashDir);
             // search for old backups
             if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
             {
-                var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.PrevBackupFolderMask).OrderByDescending(backup => backup.BackupDate).ToArray();
-                Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.PrevBackupFolderMask);
+                Logger.WriteLine(Logger.Verbosity.Message, "Backup folder  : {0}{1}{2}", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
+                var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.Pattern).OrderByDescending(backup => backup.BackupDate).ToArray();
+                Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.Pattern);
                 if (backups.Length > 0)
                 {
                     var newestBackup = backups[0];
-                    this.PreviousBackup = newestBackup.Folder;
-                    Logger.WriteLine(Logger.Verbosity.Message, "Previous backup folder is {0}", newestBackup);
+                    this.PreviousBackup = newestBackup.Folder + "\\" + backupFolderSuffix;
+                    Logger.WriteLine(Logger.Verbosity.Message, "Previous backup folder is {0}", this.PreviousBackup);
                 }
             }
+            Logger.WriteLine(Logger.Verbosity.Message, "Pattern        : {0}", this.Pattern);
+            Logger.WriteLine(Logger.Verbosity.Message, "Source folder  : {0}", this.Folder);
+            Logger.WriteLine(Logger.Verbosity.Message, "Target folder  : {0}", this.Target);
+            Logger.WriteLine(Logger.Verbosity.Message, "Hash folder    : {0}", this.HashDir);
             base.Run();
         }
     }

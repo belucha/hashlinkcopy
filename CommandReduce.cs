@@ -9,7 +9,7 @@ using System.Text.RegularExpressions;
 namespace de.intronik.hashlinkcopy
 {
     [Option("Pattern", Help = "Pattern to match for backup folders", Description = @"The backup folder date time pattern that is matched
-e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "*YYYY-MM-DD*")]
+e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "YYYY-MM-DD_HH.NN")]
     [Option("KeepMin", Help = "minimum number of backups to keep", Default = "30")]
     [Option("RuleFile", Help = "Name of a rule file", Description = "A rule file contains a set of rules.", Default = "None => default rules")]
     [Description(@"Removes old backup folders, based on the given rule set.
@@ -39,7 +39,7 @@ Default rules are:
                         new Rule(2, 6, Unit.month),
                         new Rule(10, 1, Unit.year),
                     };
-            this.Pattern = @"*YYYY-MM-DD*";
+            this.Pattern = @"YYYY-MM-DD_HH.NN";
             this.DeletedFolders = new List<string>();
         }
 
@@ -67,9 +67,9 @@ Default rules are:
                 this.Rules = lines.Select(line => new Rule(line)).OrderBy(rule => rule.Interval).ToArray();
             }
             else if (option.Name == "Pattern")
-                this.Pattern = option.Value;
+                this.Pattern = option.ParseAsString();
             else if (option.Name == "KeepMin")
-                this.KeepMin = (int)ushort.Parse(option.Value);
+                this.KeepMin = (int)(ushort)option.ParseAsLong();
         }
 
         public string Pattern { get; protected set; }

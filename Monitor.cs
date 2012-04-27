@@ -88,33 +88,40 @@ namespace de.intronik.hashlinkcopy
         }
 
         Counter[] counters;
+        public bool EnablePC { get; set; }
 
         public Monitor()
         {
+            this.EnablePC = false;
             this.counters = Enumerable
                     .Range(0, (int)CounterType.max)
                     .Select(i => (CounterType)i)
                     .Select(c => new Counter(c))
                     .ToArray();
-            try
-            {
-                if (!PerformanceCounterCategory.Exists(_pcCategory) || this.counters.Any(counter => counter.RecreatePcRequired()))
+        }
+
+        public void Init()
+        {
+            if (this.EnablePC)
+                try
                 {
-                    Logger.WriteLine(Logger.Verbosity.Verbose, "Creating performance counters...");
-                    if (PerformanceCounterCategory.Exists(_pcCategory))
-                        PerformanceCounterCategory.Delete(_pcCategory);
-                    PerformanceCounterCategory.Create(_pcCategory, @"HashLinkCopy performance counter", PerformanceCounterCategoryType.SingleInstance, new CounterCreationDataCollection(this.counters.SelectMany(c => c.CreateCounters()).ToArray()));
-                    Logger.WriteLine(Logger.Verbosity.Verbose, "...succcess!");
+                    if (!PerformanceCounterCategory.Exists(_pcCategory) || this.counters.Any(counter => counter.RecreatePcRequired()))
+                    {
+                        Logger.WriteLine(Logger.Verbosity.Verbose, "Creating performance counters...");
+                        if (PerformanceCounterCategory.Exists(_pcCategory))
+                            PerformanceCounterCategory.Delete(_pcCategory);
+                        PerformanceCounterCategory.Create(_pcCategory, @"HashLinkCopy performance counter", PerformanceCounterCategoryType.SingleInstance, new CounterCreationDataCollection(this.counters.SelectMany(c => c.CreateCounters()).ToArray()));
+                        Logger.WriteLine(Logger.Verbosity.Verbose, "...succcess!");
+                    }
+                    else
+                        Logger.WriteLine(Logger.Verbosity.Verbose, "Performance already registered!");
+                    foreach (var c in this.counters)
+                        c.CreatePc();
                 }
-                else
-                    Logger.WriteLine(Logger.Verbosity.Verbose, "Performance already registered!");
-                foreach (var c in this.counters)
-                    c.CreatePc();
-            }
-            catch (Exception error)
-            {
-                Logger.Warning("Failed to register performance counters! Make sure the program as administrive priveliges once!\nMessage {0}: {1}", error.GetType().Name, error.Message);
-            }
+                catch (Exception error)
+                {
+                    Logger.Warning("Failed to register performance counters! Make sure the program as administrive priveliges once!\nMessage {0}: {1}", error.GetType().Name, error.Message);
+                }
         }
 
         void Count(CounterType counter)
@@ -172,7 +179,6 @@ namespace de.intronik.hashlinkcopy
                 fsi.Attributes = FileAttributes.Normal;
             var di = fsi as DirectoryInfo;
             Root.Count(CounterType.deletedFiles);
-            Logger.WriteLine(Logger.Verbosity.Message, "Deleting '{0}'", fsi.Name);
             if (di != null)
                 foreach (var dirInfo in di.GetFileSystemInfos())
                     DeleteFileSystemInfo(dirInfo);
@@ -182,11 +188,13 @@ namespace de.intronik.hashlinkcopy
 
         public static void DeleteDirectory(string path)
         {
+            Logger.WriteLine(Logger.Verbosity.Message, "Deleting directory '{0}'", path);
             Monitor.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
         public static void DeleteFile(string path)
         {
+            Logger.WriteLine(Logger.Verbosity.Message, "Deleting file '{0}'", path);
             Monitor.DeleteFileSystemInfo(new FileInfo(path));
         }
 

@@ -12,6 +12,7 @@ namespace de.intronik.hashlinkcopy
     [Option("DryRun", Help = "Disables any disk operations")]
     [Option("LogFile", Help = "Additional log file", Description = "Saves the LogVerbosity output to the logfile", Default = "None")]
     [Option("LogVerb", Help = "verbosity of the log file messages", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
+    [Option("EnablePC", Help = "enable window performance counters", Description = "false,true", Default = "false")]
     abstract class CommandBase
     {
         public virtual void Init(string[] parameters)
@@ -37,13 +38,15 @@ namespace de.intronik.hashlinkcopy
         protected virtual void ProcessOption(OptionAttribute option)
         {
             if (option.Name == "Verbosity")
-                Logger.VERBOSITY = (Logger.Verbosity)Enum.Parse(typeof(Logger.Verbosity), option.Value, true);
+                Logger.VERBOSITY = option.ParseAsEnum<Logger.Verbosity>();
             if (option.Name == "LogVerb")
-                Logger.LOGVERB = (Logger.Verbosity)Enum.Parse(typeof(Logger.Verbosity), option.Value, true);
+                Logger.LOGVERB = option.ParseAsEnum<Logger.Verbosity>();
             if (option.Name == "LogFile")
                 Logger.AddLogFile(option.Value);
             if (option.Name == "DryRun")
-                Monitor.Root.DryRun = String.IsNullOrEmpty(option.Value) ? true : bool.Parse(option.Value);
+                Monitor.Root.DryRun = option.ParseAsBoolean();
+            if (option.Name == "EnablePC")
+                Monitor.Root.EnablePC = option.ParseAsBoolean();
         }
 
         public static Type GetCommandHandler(string command)
