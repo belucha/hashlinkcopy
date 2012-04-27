@@ -143,6 +143,14 @@ Allowed target path date placeholders are
             }
         }
 
+        protected override void LeaveDirectory(string path, int level)
+        {
+            base.LeaveDirectory(path, level);
+            // at this point we can set the last write time of the copied directory
+            if (!Monitor.Root.DryRun)
+                Directory.SetLastWriteTimeUtc(this.RebasePath(path, this.Target), Directory.GetLastWriteTimeUtc(path));
+        }
+
         public override void Run()
         {
             // search for old backups
