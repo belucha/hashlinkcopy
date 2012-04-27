@@ -158,7 +158,7 @@ namespace de.intronik.hashlinkcopy
             if (!Root.DryRun) File.Copy(source, dest);
             Root.Count(CounterType.copiedFiles);
             Root.Count(CounterType.copiedBytes, size);
-            Logger.WriteLine(Logger.Verbosity.Message, "Copy file '{0}' to '{1}'", source, dest);
+            Logger.WriteLine(Logger.Verbosity.Verbose, "Copy file '{0}' to '{1}'", source, dest);
         }
         public static bool LinkFile(string source, string dest, long size)
         {
@@ -166,7 +166,7 @@ namespace de.intronik.hashlinkcopy
             {
                 Root.Count(CounterType.linkedFiles);
                 Root.Count(CounterType.linkedBytes, size);
-                Logger.WriteLine(Logger.Verbosity.Message, "Link file '{0}' to '{1}'", dest, source);
+                Logger.WriteLine(Logger.Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
                 return true;
             }
             else
@@ -188,13 +188,13 @@ namespace de.intronik.hashlinkcopy
 
         public static void DeleteDirectory(string path)
         {
-            Logger.WriteLine(Logger.Verbosity.Message, "Deleting directory '{0}'", path);
+            Logger.WriteLine(Logger.Verbosity.Verbose, "Deleting directory '{0}'", path);
             Monitor.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
         public static void DeleteFile(string path)
         {
-            Logger.WriteLine(Logger.Verbosity.Message, "Deleting file '{0}'", path);
+            Logger.WriteLine(Logger.Verbosity.Verbose, "Deleting file '{0}'", path);
             Monitor.DeleteFileSystemInfo(new FileInfo(path));
         }
 
@@ -209,13 +209,13 @@ namespace de.intronik.hashlinkcopy
             if (!Root.DryRun) File.Move(source, dest);
             Root.Count(CounterType.movedFiles);
             Root.Count(CounterType.movedBytes, size);
-            Logger.WriteLine(Logger.Verbosity.Message, "Moving file '{0}' to '{1}'", source, dest);
+            Logger.WriteLine(Logger.Verbosity.Verbose, "Moving file '{0}' to '{1}'", source, dest);
         }
         public static void HashFile(string source, long size)
         {
             Root.Count(CounterType.hashedFiles);
             Root.Count(CounterType.hashedBytes, size);
-            Logger.WriteLine(Logger.Verbosity.Message, "SHA1 of '{0}' ({1}byte)", source, size);
+            Logger.WriteLine(Logger.Verbosity.Verbose, "SHA1 of '{0}' ({1}byte)", source, size);
         }
         public static void HashCollision(string path1, string path2)
         {

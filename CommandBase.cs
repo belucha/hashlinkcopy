@@ -29,7 +29,7 @@ namespace de.intronik.hashlinkcopy
                 }
                 catch (Exception inner)
                 {
-                    throw new ApplicationException(String.Format("Invalid/Unknown option '{0}'!", option), inner);
+                    throw new ApplicationException(String.Format("Invalid/Unknown option '{0}', message: {1}", option, inner.Message), inner);
                 }
         }
 
@@ -41,7 +41,7 @@ namespace de.intronik.hashlinkcopy
                 Logger.VERBOSITY = option.ParseAsEnum<Logger.Verbosity>();
             if (option.Name == "LogVerb")
                 Logger.LOGVERB = option.ParseAsEnum<Logger.Verbosity>();
-            if (option.Name == "LogFile")
+            if (option.Name == "LogFile" && (!String.IsNullOrEmpty(option.Value)))
                 Logger.AddLogFile(option.Value);
             if (option.Name == "DryRun")
                 Monitor.Root.DryRun = option.ParseAsBoolean();

@@ -25,6 +25,7 @@ namespace de.intronik.hashlinkcopy
         public static TextWriter LOGFILE = null;
         public static void AddLogFile(string filename)
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(filename));
             LOGFILE = new StreamWriter(filename, true);
         }
         public static void Error(string format, params object[] args)

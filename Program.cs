@@ -38,14 +38,17 @@ namespace de.intronik.hashlinkcopy
                 Monitor.Root.Init();
                 var start = DateTime.Now;
                 if (command.GetType() != typeof(CommandHelp))
-                    Logger.WriteLine(Logger.Verbosity.Message, "Start time {0}", start);
+                {
+                    Logger.WriteLine(Logger.Verbosity.Message, "{0} {1}", Application.ExecutablePath, Environment.CommandLine);
+                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Start time", start);
+                }
                 command.Run();
                 var end = DateTime.Now;
                 var et = end.Subtract(start);
                 if (command.GetType() != typeof(CommandHelp))
                 {
-                    Logger.WriteLine(Logger.Verbosity.Message, "Total time {0}", et);
-                    Logger.WriteLine(Logger.Verbosity.Message, "End time {0}", end);
+                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Total time", et);
+                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "End time", end);
                     Monitor.PrintStatistics();
                 }
                 if (Logger.LOGFILE != null)

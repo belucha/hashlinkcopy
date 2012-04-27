@@ -31,13 +31,13 @@ examples:
             if (parameters.Length < 1)
                 throw new ArgumentOutOfRangeException("Directory parameter is missing!");
             this.Folder = Path.GetFullPath(parameters[0]);
-            this.HashDir = Path.GetFullPath(Path.Combine(this.Folder, "..\\Hash\\"));
+            this.HashDir = null;
         }
 
         protected override void ProcessOption(OptionAttribute option)
         {
             base.ProcessOption(option);
-            if (option.Name == "HashDir") this.HashDir = option.Value;
+            if (option.Name == "HashDir") this.HashDir = option.ParseAsString();
             else if (option.Name == "Exclude") this.ExcludeList = new ExcludeList(option.Value);
             else if (option.Name == "HashCacheLimit")
             {
@@ -139,7 +139,7 @@ examples:
                 //
                 foreach (var subDir in Directory.GetDirectories(path))
                     this.Process(subDir, level + 1);
-                
+
                 //
                 // LEAVE DIR
                 //

@@ -146,7 +146,7 @@ Usage example:
                     this.HashDir = Path.Combine(this.Target.Substring(0, wildCardPos), "Hash");
                 if (String.IsNullOrEmpty(this.PrevBackupFolderRoot))
                 {
-                    this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos);
+                       this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos);
                     backupFolderSuffix = this.Target.Substring(wildCardPos + 3);
                 }
                 this.Target = this.Target.Replace(@"\*\", @"\" + DateTime.Now.ToString(this.Pattern.ToLower().Replace("mm", "MM").Replace("nn", "mm").Replace("nn", "mm")) + @"\");
@@ -154,26 +154,26 @@ Usage example:
                     throw new InvalidOperationException("The target folder may only contain one date/time wildcard * and must be surrounded by \\!");
             }
             else
-                this.HashDir = Path.GetFullPath(Path.Combine(this.Target, @"..\Hash"));
+                this.HashDir = String.IsNullOrEmpty(this.HashDir) ? Path.Combine(this.Target, @"..\Hash") : this.HashDir;
             this.Target = Path.GetFullPath(this.Target);
             this.HashDir = Path.GetFullPath(this.HashDir);
             // search for old backups
             if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
             {
-                Logger.WriteLine(Logger.Verbosity.Message, "Backup folder  : {0}{1}{2}", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
+                Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}{2}{3}", "Backup folder", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
                 var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.Pattern).OrderByDescending(backup => backup.BackupDate).ToArray();
                 Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.Pattern);
                 if (backups.Length > 0)
                 {
                     var newestBackup = backups[0];
                     this.PreviousBackup = newestBackup.Folder + "\\" + backupFolderSuffix;
-                    Logger.WriteLine(Logger.Verbosity.Message, "Previous backup folder is {0}", this.PreviousBackup);
+                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Previous backup folder", this.PreviousBackup);
                 }
             }
-            Logger.WriteLine(Logger.Verbosity.Message, "Pattern        : {0}", this.Pattern);
-            Logger.WriteLine(Logger.Verbosity.Message, "Source folder  : {0}", this.Folder);
-            Logger.WriteLine(Logger.Verbosity.Message, "Target folder  : {0}", this.Target);
-            Logger.WriteLine(Logger.Verbosity.Message, "Hash folder    : {0}", this.HashDir);
+            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Pattern", this.Pattern);
+            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Source folder", this.Folder);
+            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Target folder", this.Target);
+            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Hash folder", this.HashDir);
             base.Run();
         }
     }

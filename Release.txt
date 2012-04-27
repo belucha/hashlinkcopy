@@ -1,0 +1,13 @@
+﻿HashLinkCopy release notes:
+v1.5 2012-04-27 12:54
+	- commandline is logged
+	- bugfix: hashdir option was not working since v1.4 anymore
+	- copy/move/link messages are now at verbose level
+	- bugfix: target folder for the logfile is created automatically
+
+v1.4 2012-04-27 11:34
+    - performance counters have to be explicitly enabled
+    - count file/directory deletes
+    - special methods for boolean/enum option parsing
+    - start/end times are printed
+    - copy supports wild card instead of direct pattern in target folder
