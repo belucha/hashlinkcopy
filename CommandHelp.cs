@@ -6,6 +6,7 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
+    [Description(@"This screen")]
     class CommandHelp : CommandBase
     {
         string[] parameters;
@@ -21,9 +22,15 @@ namespace de.intronik.hashlinkcopy
                 Console.WriteLine(
 @"HELP:
 =====
-
-HashLinkCopy bla bla
-");
+To get help on a specific command run
+{0} HELP COMMAND
+where COMMAND is one of:
+", System.Windows.Forms.Application.ExecutablePath);
+                foreach (var cmd in CommandBase.GetCommandList())
+                {
+                    var d = cmd.GetCustomAttributes(typeof(DescriptionAttribute), true).Cast<DescriptionAttribute>().FirstOrDefault();
+                    Console.WriteLine("\t - {0,-10}: {1}", cmd.Name.Substring("Command".Length).ToUpper(), d != null ? d.Description : "");
+                }
             }
             foreach (var command in this.parameters)
                 try

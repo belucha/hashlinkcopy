@@ -51,8 +51,6 @@ namespace de.intronik.hashlinkcopy
                     Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "End time", end);
                     Monitor.PrintStatistics();
                 }
-                if (Logger.LOGFILE != null)
-                    Logger.LOGFILE.Dispose();
                 return 0;
             }
             catch (System.Reflection.TargetInvocationException error)
@@ -63,8 +61,6 @@ namespace de.intronik.hashlinkcopy
             {
                 Logger.Error("{0}: {1}", error.GetType().Name, error.Message);
             }
-            if (Logger.LOGFILE != null)
-                Logger.LOGFILE.Dispose();
             return 2;
         }
     }

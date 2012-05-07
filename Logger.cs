@@ -22,12 +22,7 @@ namespace de.intronik.hashlinkcopy
         public static int WarningCount { get; set; }
         public static Verbosity VERBOSITY = Verbosity.Message;
         public static Verbosity LOGVERB = Verbosity.Message;
-        public static TextWriter LOGFILE = null;
-        public static void AddLogFile(string filename)
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(filename));
-            LOGFILE = new StreamWriter(filename, true);
-        }
+        public static string LOGFILE = null;
         public static void Error(string format, params object[] args)
         {
             Logger.ErrorCount++;
@@ -42,11 +37,11 @@ namespace de.intronik.hashlinkcopy
         }
         public static void WriteLine(Verbosity verbosity, string format, params object[] args)
         {
-            var s = String.Format("{0}: ", verbosity) + format;
+            var s = String.Format(String.Format("{0}: ", verbosity) + format, args);
             if (Logger.VERBOSITY >= verbosity)
-                Console.WriteLine(s, args);
-            if (Logger.LOGVERB >= verbosity && Logger.LOGFILE != null)
-                Logger.LOGFILE.WriteLine(s, args);
+                Console.WriteLine(s);
+            if (Logger.LOGVERB >= verbosity && !String.IsNullOrEmpty(Logger.LOGFILE))
+                File.AppendAllText(Logger.LOGFILE, s + "\n", Encoding.UTF8);
         }
     }
 }

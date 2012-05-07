@@ -12,14 +12,7 @@ namespace de.intronik.hashlinkcopy
 e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "YYYY-MM-DD_HH.NN")]
     [Option("KeepMin", Help = "minimum number of backups to keep", Default = "30")]
     [Option("RuleFile", Help = "Name of a rule file", Description = "A rule file contains a set of rules.", Default = "None => default rules")]
-    [Description(@"Removes old backup folders, based on the given rule set.
-Default rules are:
-    30 each day
-    8 each week
-    4 each month
-    4 each 3 month
-    2 each 6 month
-    10 each year")]
+    [Description(@"Removes old backup folders, based on the given rule set.")]
     class CommandReduce : CommandBase
     {
         public List<string> DeletedFolders { get; private set; }

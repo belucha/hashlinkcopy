@@ -10,7 +10,6 @@ namespace de.intronik.hashlinkcopy
 {
     [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
     [Option("DryRun", Help = "Disables any disk operations")]
-    [Option("LogFile", Help = "Additional log file", Description = "Saves the LogVerbosity output to the logfile", Default = "None")]
     [Option("LogVerb", Help = "verbosity of the log file messages", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
     [Option("EnablePC", Help = "enable window performance counters", Description = "false,true", Default = "false")]
     abstract class CommandBase
@@ -41,8 +40,6 @@ namespace de.intronik.hashlinkcopy
                 Logger.VERBOSITY = option.ParseAsEnum<Logger.Verbosity>();
             if (option.Name == "LogVerb")
                 Logger.LOGVERB = option.ParseAsEnum<Logger.Verbosity>();
-            if (option.Name == "LogFile" && (!String.IsNullOrEmpty(option.Value)))
-                Logger.AddLogFile(option.Value);
             if (option.Name == "DryRun")
                 Monitor.Root.DryRun = option.ParseAsBoolean();
             if (option.Name == "EnablePC")

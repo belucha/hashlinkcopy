@@ -1,4 +1,7 @@
 ﻿HashLinkCopy release notes:
+v1.6 2012-05-07 14:45
+	- help output improved
+	- Backup.log path is fixed to target path + Backup.log
 v1.5 2012-04-27 12:54
 	- commandline is logged
 	- bugfix: hashdir option was not working since v1.4 anymore

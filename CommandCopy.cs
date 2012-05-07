@@ -7,12 +7,7 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Description(@"copies one directory into the target path. An wildcard character * is replaced by the formatted date/time
-
-Usage example:
-    HashLinkCopy.exe COPY D:\Projekte Z:\Backup\*\Projekte\
-        Makes a backup of D:\Projekte to Z:\Backup\YYYY-MM-DD_HH.NN\Projekte and uses Z:\Backup\Hash as hash folder
-")]
+    [Description(@"copies one directory into the target path. An wildcard character * is replaced by the formatted date/time")]
     [Option(@"SkipLevel", Help = @"Skip existing folders at given path recursion depth")]
     [Option(@"PrevBackupFolderRoot", Help = @"Root folder for backups", Default = @"")]
     [Option(@"Pattern", Help = @"Date formatting used to replace the * wild card in the target path", Default = @"YYYY-MM-DD_HH.NN")]
@@ -146,7 +141,7 @@ Usage example:
                     this.HashDir = Path.Combine(this.Target.Substring(0, wildCardPos), "Hash");
                 if (String.IsNullOrEmpty(this.PrevBackupFolderRoot))
                 {
-                       this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos);
+                    this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos);
                     backupFolderSuffix = this.Target.Substring(wildCardPos + 3);
                 }
                 this.Target = this.Target.Replace(@"\*\", @"\" + DateTime.Now.ToString(this.Pattern.ToLower().Replace("mm", "MM").Replace("nn", "mm").Replace("nn", "mm")) + @"\");
@@ -156,6 +151,8 @@ Usage example:
             else
                 this.HashDir = String.IsNullOrEmpty(this.HashDir) ? Path.Combine(this.Target, @"..\Hash") : this.HashDir;
             this.Target = Path.GetFullPath(this.Target);
+            Directory.CreateDirectory(this.Target);
+            Logger.LOGFILE = Path.Combine(this.Target, "Backup.log");
             this.HashDir = Path.GetFullPath(this.HashDir);
             // search for old backups
             if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
