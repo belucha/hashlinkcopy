@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.IO;
 using System.ComponentModel;
 using System.Collections.Generic;
@@ -18,6 +19,7 @@ namespace de.intronik.hashlinkcopy
         public string Pattern { get; private set; }
         public string PrevBackupFolderRoot { get; private set; }
         public int SkipLevel { get; private set; }
+        int backgrounJobsWaiting;
 
         public override void Init(string[] parameters)
         {
@@ -66,7 +68,8 @@ namespace de.intronik.hashlinkcopy
             // build target file name
             var tf = this.RebasePath(path, this.Target);
             // skip existing target files
-            if (File.Exists(tf)) return;
+            if (File.Exists(tf))
+                return;
             var info = new FileInfo(path);
             // check if previous version of file can be found, that we could link to, this way we avoid to calc the SHA1
             if (this.PreviousBackup != null)
@@ -101,6 +104,7 @@ namespace de.intronik.hashlinkcopy
                 if (hInfo.Length != info.Length)
                 {
                     Monitor.HashCollision(hf, path);
+                    Monitor.DeleteFile(hf);
                     Monitor.CopyFile(path, hf, info.Length);
                     return;
                 }
@@ -128,17 +132,22 @@ namespace de.intronik.hashlinkcopy
         protected override void ProcessFile(string path, int level)
         {
             // multithread version
-            System.Threading.ThreadPool.QueueUserWorkItem(new System.Threading.WaitCallback(target =>
-            {
-                try
+            Interlocked.Increment(ref this.backgrounJobsWaiting);
+            while (!System.Threading.ThreadPool.QueueUserWorkItem(
+                new System.Threading.WaitCallback(target =>
                 {
-                    this.DoProcessFile(path, level);
-                }
-                catch (Exception error)
-                {
-                    throw error;
-                }
-            }));
+                    try
+                    {
+                        this.DoProcessFile(path, level);
+                    }
+                    catch (Exception error)
+                    {
+                        Monitor.Error(path, error);
+                    }
+                    Interlocked.Decrement(ref this.backgrounJobsWaiting);
+                })
+            ))
+                System.Threading.Thread.Sleep(100);
             //this.DoProcessFile(path, level);
         }
 
@@ -165,7 +174,7 @@ namespace de.intronik.hashlinkcopy
                     this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos + 1);
                     backupFolderSuffix = this.Target.Substring(wildCardPos + 3);
                 }
-                this.Target = this.Target.Replace(@"\*\", @"\" + DateTime.Now.ToString(this.Pattern.ToLower().Replace("mm", "MM").Replace("nn", "mm").Replace("nn", "mm")) + @"\");
+                this.Target = this.Target.Replace(@"\*\", @"\" + DateTime.Now.ToString(this.Pattern.ToLower().Replace("mm", "MM").Replace("hh", "HH").Replace("nn", "mm").Replace("nn", "mm")) + @"\");
                 if (this.Target.IndexOf('*') >= 0)
                     throw new InvalidOperationException("The target folder may only contain one date/time wildcard * and must be surrounded by \\!");
             }
@@ -195,6 +204,10 @@ namespace de.intronik.hashlinkcopy
             Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Target folder", this.Target);
             Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Hash folder", this.HashDir);
             base.Run();
+            Logger.WriteLine(Logger.Verbosity.Message, "Waiting for {0} background jobs to complete...", this.backgrounJobsWaiting);
+            while (this.backgrounJobsWaiting > 0)
+                Thread.Sleep(100);
+            Logger.WriteLine(Logger.Verbosity.Message, "Background jobs completed.");
         }
     }
 }

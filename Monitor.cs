@@ -220,7 +220,7 @@ namespace de.intronik.hashlinkcopy
         public static void HashCollision(string path1, string path2)
         {
             Root.Count(CounterType.collisions);
-            Logger.WriteLine(Logger.Verbosity.Error, "Hash Collision", path1, path2);
+            Logger.WriteLine(Logger.Verbosity.Error, "Hash Collision '{0}'<->'{1}'", path1, path2);
         }
         public static void Error(string path, Exception error)
         {

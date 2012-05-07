@@ -41,7 +41,8 @@ namespace de.intronik.hashlinkcopy
             if (Logger.VERBOSITY >= verbosity)
                 Console.WriteLine(s);
             if (Logger.LOGVERB >= verbosity && !String.IsNullOrEmpty(Logger.LOGFILE))
-                File.AppendAllText(Logger.LOGFILE, s + "\n", Encoding.UTF8);
+                lock (typeof(Logger))
+                    File.AppendAllText(Logger.LOGFILE, s + "\n", Encoding.UTF8);
         }
     }
 }

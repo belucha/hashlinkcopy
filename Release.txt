@@ -1,5 +1,9 @@
 ﻿HashLinkCopy release notes:
-v1.6 2012-05-07 15:15
+v1.8 2012-05-07 18:03
+	- bugfix: multithread
+		* wait for termination of backgroundjobs
+		* logfile writes are protected lock()
+v1.7 2012-05-07 15:15
 	- multithread version
 	- fixed prev. backup folder path
 v1.6 2012-05-07 14:45
