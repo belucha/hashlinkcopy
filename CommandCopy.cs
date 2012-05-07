@@ -61,7 +61,7 @@ namespace de.intronik.hashlinkcopy
             return false;
         }
 
-        protected override void ProcessFile(string path, int level)
+        protected void DoProcessFile(string path, int level)
         {
             // build target file name
             var tf = this.RebasePath(path, this.Target);
@@ -87,38 +87,59 @@ namespace de.intronik.hashlinkcopy
             // we have no previous directory or the file changed, or linking failed, use hash algorithm
             var hi = new HashInfo(path);
             var hf = Path.GetFullPath(hi.GetHashPath(this.HashDir));
-            // check if we need to copy the file
-            if (!File.Exists(hf))
+            // lock the target hash path
+            lock (String.Intern(hf))
             {
-                Monitor.CreateDirectory(Path.GetDirectoryName(hf));
-                Monitor.CopyFile(path, hf, info.Length);
-                File.SetAttributes(hf, FileAttributes.Normal);
-            }
-            var hInfo = new FileInfo(hf);
-            if (hInfo.Length != info.Length)
-            {
-                Monitor.HashCollision(hf, path);
-                Monitor.CopyFile(path, hf, info.Length);
-                return;
-            }
-            // create link
-            if (!Monitor.LinkFile(hf, tf, info.Length))
-                Monitor.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file
-            // adjust file attributes and the last write time
-            try
-            {
-                if (!Monitor.Root.DryRun)
+                // check if we need to copy the file
+                if (!File.Exists(hf))
                 {
-                    // make sure the backed up files have identical attributes and write times as the original
-                    File.SetAttributes(path, info.Attributes);
-                    File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
-                    // remove the archive attribute of the original file
-                    File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+                    Monitor.CreateDirectory(Path.GetDirectoryName(hf));
+                    Monitor.CopyFile(path, hf, info.Length);
+                    File.SetAttributes(hf, FileAttributes.Normal);
+                }
+                var hInfo = new FileInfo(hf);
+                if (hInfo.Length != info.Length)
+                {
+                    Monitor.HashCollision(hf, path);
+                    Monitor.CopyFile(path, hf, info.Length);
+                    return;
+                }
+                // create link
+                if (!Monitor.LinkFile(hf, tf, info.Length))
+                    Monitor.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file
+                // adjust file attributes and the last write time
+                try
+                {
+                    if (!Monitor.Root.DryRun)
+                    {
+                        // make sure the backed up files have identical attributes and write times as the original
+                        File.SetAttributes(path, info.Attributes);
+                        File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
+                        // remove the archive attribute of the original file
+                        File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+                    }
+                }
+                catch
+                {
                 }
             }
-            catch
+        }
+
+        protected override void ProcessFile(string path, int level)
+        {
+            // multithread version
+            System.Threading.ThreadPool.QueueUserWorkItem(new System.Threading.WaitCallback(target =>
             {
-            }
+                try
+                {
+                    this.DoProcessFile(path, level);
+                }
+                catch (Exception error)
+                {
+                    throw error;
+                }
+            }));
+            //this.DoProcessFile(path, level);
         }
 
         protected override void LeaveDirectory(string path, int level)
@@ -141,7 +162,7 @@ namespace de.intronik.hashlinkcopy
                     this.HashDir = Path.Combine(this.Target.Substring(0, wildCardPos), "Hash");
                 if (String.IsNullOrEmpty(this.PrevBackupFolderRoot))
                 {
-                    this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos);
+                    this.PrevBackupFolderRoot = this.Target.Substring(0, wildCardPos + 1);
                     backupFolderSuffix = this.Target.Substring(wildCardPos + 3);
                 }
                 this.Target = this.Target.Replace(@"\*\", @"\" + DateTime.Now.ToString(this.Pattern.ToLower().Replace("mm", "MM").Replace("nn", "mm").Replace("nn", "mm")) + @"\");
@@ -157,6 +178,8 @@ namespace de.intronik.hashlinkcopy
             // search for old backups
             if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
             {
+                if (!this.PrevBackupFolderRoot.EndsWith("\\"))
+                    this.PrevBackupFolderRoot += "\\";
                 Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}{2}{3}", "Backup folder", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
                 var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.Pattern).OrderByDescending(backup => backup.BackupDate).ToArray();
                 Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.Pattern);

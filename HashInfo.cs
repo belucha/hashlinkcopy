@@ -13,7 +13,7 @@ namespace de.intronik.hashlinkcopy
     /// </summary>    
     public class HashInfo
     {
-        static SHA1 hashProvider = SHA1.Create();
+        SHA1 hashProvider = SHA1.Create();
         const string STREAM = @"de.Intronik.HashInfo"; // name of the ADS Stream used to store the cached hashed info
         const int SIZE = 8 + 8 + 20;
         public byte[] Hash { get; private set; }

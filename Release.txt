@@ -1,4 +1,7 @@
 ﻿HashLinkCopy release notes:
+v1.6 2012-05-07 15:15
+	- multithread version
+	- fixed prev. backup folder path
 v1.6 2012-05-07 14:45
 	- help output improved
 	- Backup.log path is fixed to target path + Backup.log
