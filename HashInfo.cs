@@ -52,7 +52,7 @@ namespace de.intronik.hashlinkcopy
             }
             if (this.Hash == null || this.Hash.Length != 20 || this.LastWriteTimeUtc != i.LastWriteTimeUtc || this.Length != i.Length)
             {
-                Monitor.HashFile(filename, i.Length);
+                Monitor.Root.HashFile(filename, i.Length);
                 using (var inputStream = File.OpenRead(filename))
                     this.Hash = hashProvider.ComputeHash(inputStream);
                 if (i.Length > HashInfo.CacheLimit)

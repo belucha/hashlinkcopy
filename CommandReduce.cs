@@ -144,7 +144,7 @@ e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "YYYY-MM-DD_HH.NN")]
                 var start = DateTime.Now;
                 try
                 {
-                    Monitor.DeleteDirectory(f);
+                    Monitor.Root.DeleteDirectory(f);
                     Logger.WriteLine(Logger.Verbosity.Message, "...completed after {0}", DateTime.Now.Subtract(start));
                 }
                 catch (Exception error)

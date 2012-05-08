@@ -19,7 +19,8 @@ namespace de.intronik.hashlinkcopy
         public string Pattern { get; private set; }
         public string PrevBackupFolderRoot { get; private set; }
         public int SkipLevel { get; private set; }
-        int backgrounJobsWaiting;
+        const int maxBackgroundJobs = 50;
+        Semaphore backgroundJobs;
 
         public override void Init(string[] parameters)
         {
@@ -44,10 +45,10 @@ namespace de.intronik.hashlinkcopy
             else if (option.Name == "PrevBackupFolderRoot") this.PrevBackupFolderRoot = option.Value;
         }
 
-        protected override bool CancelEnterDirectory(string path, int level)
+        protected override bool CancelEnterDirectory(DirectoryInfo dir, int level)
         {
             // get target folder
-            var tf = this.RebasePath(path, this.Target);
+            var tf = this.RebasePath(dir.FullName, this.Target);
             // check if existing folder should be skipped
             var exists = Directory.Exists(tf);
             if (exists && level >= this.SkipLevel) return true;
@@ -55,22 +56,22 @@ namespace de.intronik.hashlinkcopy
             if (!exists)
             {
                 // create it and duplicate creation&write time and attributes
-                Monitor.CreateDirectory(tf);
-                Directory.SetCreationTimeUtc(tf, Directory.GetCreationTimeUtc(path));
-                Directory.SetLastWriteTimeUtc(tf, Directory.GetLastWriteTimeUtc(path));
-                File.SetAttributes(tf, File.GetAttributes(path));
+                Monitor.Root.CreateDirectory(tf);
+                Directory.SetCreationTimeUtc(tf, Directory.GetCreationTimeUtc(dir.FullName));
+                Directory.SetLastWriteTimeUtc(tf, Directory.GetLastWriteTimeUtc(dir.FullName));
+                File.SetAttributes(tf, File.GetAttributes(dir.FullName));
             }
             return false;
         }
 
-        protected void DoProcessFile(string path, int level)
+        void DoProcessFile(FileInfo info, int level)
         {
+            var path = info.FullName;
             // build target file name
             var tf = this.RebasePath(path, this.Target);
             // skip existing target files
             if (File.Exists(tf))
                 return;
-            var info = new FileInfo(path);
             // check if previous version of file can be found, that we could link to, this way we avoid to calc the SHA1
             if (this.PreviousBackup != null)
             {
@@ -80,7 +81,7 @@ namespace de.intronik.hashlinkcopy
                     var pInfo = new FileInfo(pf);
                     if (pInfo.Length == info.Length && pInfo.LastWriteTimeUtc == info.LastWriteTimeUtc &&
                         (info.Attributes & FileAttributes.Archive) == 0)
-                        if (Monitor.LinkFile(pf, tf, info.Length))
+                        if (Monitor.Root.LinkFile(pf, tf, info.Length))
                         {
                             File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
                             return;
@@ -96,21 +97,21 @@ namespace de.intronik.hashlinkcopy
                 // check if we need to copy the file
                 if (!File.Exists(hf))
                 {
-                    Monitor.CreateDirectory(Path.GetDirectoryName(hf));
-                    Monitor.CopyFile(path, hf, info.Length);
+                    Monitor.Root.CreateDirectory(Path.GetDirectoryName(hf));
+                    Monitor.Root.CopyFile(path, hf, info.Length);
                     File.SetAttributes(hf, FileAttributes.Normal);
                 }
                 var hInfo = new FileInfo(hf);
                 if (hInfo.Length != info.Length)
                 {
-                    Monitor.HashCollision(hf, path);
-                    Monitor.DeleteFile(hf);
-                    Monitor.CopyFile(path, hf, info.Length);
+                    Monitor.Root.HashCollision(hf, path);
+                    Monitor.Root.DeleteFile(hf);
+                    Monitor.Root.CopyFile(path, hf, info.Length);
                     return;
                 }
                 // create link
-                if (!Monitor.LinkFile(hf, tf, info.Length))
-                    Monitor.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file
+                if (!Monitor.Root.LinkFile(hf, tf, info.Length))
+                    Monitor.Root.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file
                 // adjust file attributes and the last write time
                 try
                 {
@@ -129,34 +130,35 @@ namespace de.intronik.hashlinkcopy
             }
         }
 
-        protected override void ProcessFile(string path, int level)
+        void BackgroundWorkerProcessFile(object target)
         {
-            // multithread version
-            Interlocked.Increment(ref this.backgrounJobsWaiting);
-            while (!System.Threading.ThreadPool.QueueUserWorkItem(
-                new System.Threading.WaitCallback(target =>
-                {
-                    try
-                    {
-                        this.DoProcessFile(path, level);
-                    }
-                    catch (Exception error)
-                    {
-                        Monitor.Error(path, error);
-                    }
-                    Interlocked.Decrement(ref this.backgrounJobsWaiting);
-                })
-            ))
-                System.Threading.Thread.Sleep(100);
-            //this.DoProcessFile(path, level);
+            var kvp = (KeyValuePair<FileInfo, int>)target;
+            try
+            {
+                this.DoProcessFile(kvp.Key, kvp.Value);
+            }
+            catch (Exception error)
+            {
+                Monitor.Root.Error(kvp.Key.FullName, error);
+            }
+            // job is completed, decrement number of uncompleted job
+            backgroundJobs.Release();
         }
 
-        protected override void LeaveDirectory(string path, int level)
+        protected override void ProcessFile(FileInfo file, int level)
         {
-            base.LeaveDirectory(path, level);
+            // do not start an endless amount of waiting threads
+            this.backgroundJobs.WaitOne();
+            // que job and increment number of uncompleted jobs
+            ThreadPool.QueueUserWorkItem(this.BackgroundWorkerProcessFile, new KeyValuePair<FileInfo, int>(file, level));
+        }
+
+        protected override void LeaveDirectory(DirectoryInfo dir, int level)
+        {
+            base.LeaveDirectory(dir, level);
             // at this point we can set the last write time of the copied directory
             if (!Monitor.Root.DryRun)
-                Directory.SetLastWriteTimeUtc(this.RebasePath(path, this.Target), Directory.GetLastWriteTimeUtc(path));
+                Directory.SetLastWriteTimeUtc(this.RebasePath(dir.FullName, this.Target), Directory.GetLastWriteTimeUtc(dir.FullName));
         }
 
         public override void Run()
@@ -183,31 +185,35 @@ namespace de.intronik.hashlinkcopy
             this.Target = Path.GetFullPath(this.Target);
             Directory.CreateDirectory(this.Target);
             Logger.LOGFILE = Path.Combine(this.Target, "Backup.log");
+            Logger.PrintInfo("CommandLine", Environment.CommandLine);
             this.HashDir = Path.GetFullPath(this.HashDir);
             // search for old backups
             if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
             {
                 if (!this.PrevBackupFolderRoot.EndsWith("\\"))
                     this.PrevBackupFolderRoot += "\\";
-                Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}{2}{3}", "Backup folder", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
+                Logger.PrintInfo("Backup folder", "{0}{1}{2}", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
                 var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.Pattern).OrderByDescending(backup => backup.BackupDate).ToArray();
                 Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.Pattern);
                 if (backups.Length > 0)
                 {
                     var newestBackup = backups[0];
                     this.PreviousBackup = newestBackup.Folder + "\\" + backupFolderSuffix;
-                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Previous backup folder", this.PreviousBackup);
+                    Logger.PrintInfo("Previous backup folder", this.PreviousBackup);
                 }
             }
-            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Pattern", this.Pattern);
-            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Source folder", this.Folder);
-            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Target folder", this.Target);
-            Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Hash folder", this.HashDir);
+            Logger.PrintInfo("Pattern", this.Pattern);
+            Logger.PrintInfo("Source folder", this.Folder);
+            Logger.PrintInfo("Target folder", this.Target);
+            Logger.PrintInfo("Hash folder", this.HashDir);
+            // prepare background jobs
+            this.backgroundJobs = new Semaphore(maxBackgroundJobs, maxBackgroundJobs);
             base.Run();
-            Logger.WriteLine(Logger.Verbosity.Message, "Waiting for {0} background jobs to complete...", this.backgrounJobsWaiting);
-            while (this.backgrounJobsWaiting > 0)
-                Thread.Sleep(100);
+            Logger.WriteLine(Logger.Verbosity.Message, "Waiting for background jobs to complete...");
+            for (var i = 0; i < maxBackgroundJobs; i++)
+                this.backgroundJobs.WaitOne();
             Logger.WriteLine(Logger.Verbosity.Message, "Background jobs completed.");
+            this.backgroundJobs.Close();
         }
     }
 }

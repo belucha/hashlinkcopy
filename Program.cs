@@ -35,21 +35,20 @@ namespace de.intronik.hashlinkcopy
                 var command = CommandBase.CreateCommandHandler(parameters[0]);
                 command.Init(parameters.Skip(1).ToArray());
                 command.ParseOptions(args.Where(arg => arg.StartsWith("--")));
-                Monitor.Root.Init();
                 var start = DateTime.Now;
                 if (command.GetType() != typeof(CommandHelp))
                 {
                     Logger.WriteLine(Logger.Verbosity.Message, "{0} {1}", Application.ExecutablePath, Environment.CommandLine);
-                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Start time", start);
+                    Logger.PrintInfo("Start time", start);
                 }
                 command.Run();
                 var end = DateTime.Now;
                 var et = end.Subtract(start);
                 if (command.GetType() != typeof(CommandHelp))
                 {
-                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "Total time", et);
-                    Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", "End time", end);
-                    Monitor.PrintStatistics();
+                    Logger.PrintInfo("Total time", et);
+                    Logger.PrintInfo("End time", end);
+                    Monitor.Root.PrintStatistics();
                 }
                 return 0;
             }

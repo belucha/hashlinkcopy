@@ -1,4 +1,10 @@
 ﻿HashLinkCopy release notes:
+v1.8 2012-05-08 11:00
+	- # of background jobs limited to 50
+	- Control-C terminates the program gracefully
+	- verbosity can be changed by numbers 0..5
+	- verbosity of 0 display status information
+
 v1.8 2012-05-07 18:03
 	- bugfix: multithread
 		* wait for termination of backgroundjobs

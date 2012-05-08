@@ -14,6 +14,7 @@ namespace de.intronik.hashlinkcopy
     [Option("EnablePC", Help = "enable window performance counters", Description = "false,true", Default = "false")]
     abstract class CommandBase
     {
+
         public virtual void Init(string[] parameters)
         {
         }
@@ -42,8 +43,6 @@ namespace de.intronik.hashlinkcopy
                 Logger.LOGVERB = option.ParseAsEnum<Logger.Verbosity>();
             if (option.Name == "DryRun")
                 Monitor.Root.DryRun = option.ParseAsBoolean();
-            if (option.Name == "EnablePC")
-                Monitor.Root.EnablePC = option.ParseAsBoolean();
         }
 
         public static Type GetCommandHandler(string command)

@@ -10,27 +10,27 @@ namespace de.intronik.hashlinkcopy
     [Description("Cleans a hash directory from abandoned hash files (linkcount==1)")]
     class CommandClean : CommandTreeWalker
     {
-        protected override void ProcessFile(string path, int level)
+        protected override void ProcessFile(FileInfo file, int level)
         {
-            var s = this.RebasePath(path, "");
+            var s = this.RebasePath(file.FullName, "");
             var r = HashInfo.CheckAndCorrectHashPath(s);
             if (r == null) return;  // not a hashfile
-            var count = Win32.GetFileLinkCount(path);
+            var count = Win32.GetFileLinkCount(file.FullName);
             if (r == "" && count > 1) return;  // valid hash file and count is > 1
             if (count > 1)
-                Monitor.MoveFile(path, Path.Combine(this.Folder, r), 0);    // hash file and used, but with invalid format, move to new format
+                Monitor.Root.MoveFile(file.FullName, Path.Combine(this.Folder, r), 0);    // hash file and used, but with invalid format, move to new format
             else
-                Monitor.DeleteFile(path);  // not in use => delete
+                Monitor.Root.DeleteFile(file.FullName);  // not in use => delete
         }
         public override void Run()
         {
             base.Run();
         }
-        protected override void LeaveDirectory(string path, int level)
+        protected override void LeaveDirectory(DirectoryInfo dir, int level)
         {
-            base.LeaveDirectory(path, level);
-            if (Directory.GetFileSystemEntries(path).Length == 0)
-                Monitor.DeleteDirectory(path);
+            base.LeaveDirectory(dir, level);
+            if (Directory.GetFileSystemEntries(dir.FullName).Length == 0)
+                Monitor.Root.DeleteDirectory(dir.FullName);
         }
     }
 }

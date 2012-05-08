@@ -19,10 +19,20 @@ examples:
         public string Folder { get; protected set; }
         public ExcludeList ExcludeList { get; private set; }
         public string HashDir { get; protected set; }
+        bool cancel = false;
 
         public CommandTreeWalker()
         {
             this.ExcludeList = new ExcludeList();
+            Console.TreatControlCAsInput = false;
+            Console.CancelKeyPress += new ConsoleCancelEventHandler(Console_CancelKeyPress);
+        }
+
+        void Console_CancelKeyPress(object sender, ConsoleCancelEventArgs e)
+        {
+            e.Cancel = true;
+            cancel = true;
+            Logger.WriteLine(Logger.Verbosity.Error, "ABORT REQUESTED!");
         }
 
         public override void Init(string[] parameters)
@@ -65,7 +75,7 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <returns>true to cancel processing</returns>
-        protected virtual bool CancelEnterDirectory(string path, int level)
+        protected virtual bool CancelEnterDirectory(DirectoryInfo dirInfo, int level)
         {
             return false;
         }
@@ -75,7 +85,7 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <param name="level"></param>
-        protected virtual void LeaveDirectory(string path, int level)
+        protected virtual void LeaveDirectory(DirectoryInfo dirInfo, int level)
         {
         }
         /// <summary>
@@ -83,7 +93,7 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <param name="level"></param>
-        protected abstract void ProcessFile(string path, int level);
+        protected abstract void ProcessFile(FileInfo file, int level);
 
         /// <summary>
         /// Returns the coresponding target path for a given source path
@@ -101,59 +111,67 @@ examples:
             return Path.Combine(newBasePath, subPath);
         }
 
-        protected void Process(string path, int level)
+        protected void Process(DirectoryInfo dirInfo, int level)
         {
+            var path = dirInfo.FullName;
             try
             {
                 if (this.ExcludeList.Exclude(path.EndsWith(@"\") ? path : (path + @"\")))
                 {
-                    Monitor.SkipDirectory(path, "exclude list match");
+                    Monitor.Root.SkipDirectory(path, "exclude list match");
                     return;
                 }
-                if (this.CancelEnterDirectory(path, level))
+                if (this.CancelEnterDirectory(dirInfo, level))
                 {
-                    Monitor.SkipDirectory(path, String.Format("level {0}", level));
+                    Monitor.Root.SkipDirectory(path, String.Format("level {0}", level));
                     return;
                 }
-                Monitor.ProcessDirectory(path);
+                Monitor.Root.ProcessDirectory(path);
                 //
-                // PROCESS FILES
+                // PROCESS SUBENTRIES
                 //
-                foreach (var filename in Directory.GetFiles(path))
-                    try
+                foreach (var entry in dirInfo.GetFileSystemInfos())
+                {
+                    if (this.cancel) break;
+                    var subDir = entry as DirectoryInfo;
+                    if (subDir != null)
+                        this.Process(subDir, level + 1);
+                    else
                     {
-                        if (this.ExcludeList.Exclude(filename))
+                        var filename = entry.FullName;
+
+                        try
                         {
-                            Monitor.SkipFile(filename, "exclude list match");
-                            continue;
+                            if (this.ExcludeList.Exclude(filename))
+                            {
+                                Monitor.Root.SkipFile(filename, "exclude list match");
+                                continue;
+                            }
+                            Monitor.Root.ProcessFile(filename);
+                            this.ProcessFile(entry as FileInfo, level);
+                            if (this.cancel) break;
                         }
-                        Monitor.ProcessFile(filename);
-                        this.ProcessFile(filename, level);
+                        catch (Exception error)
+                        {
+                            Monitor.Root.Error(filename, error);
+                        }
                     }
-                    catch (Exception error)
-                    {
-                        Monitor.Error(filename, error);
-                    }
-                //
-                // PROCESS SUB DIRS
-                //
-                foreach (var subDir in Directory.GetDirectories(path))
-                    this.Process(subDir, level + 1);
+                }
 
                 //
                 // LEAVE DIR
                 //
-                this.LeaveDirectory(path, level);
+                this.LeaveDirectory(dirInfo, level);
             }
             catch (Exception error)
             {
-                Monitor.Error(path, error);
+                Monitor.Root.Error(path, error);
             }
         }
 
         public override void Run()
         {
-            Process(this.Folder, 0);
+            Process(new DirectoryInfo(this.Folder), 0);
         }
 
     }

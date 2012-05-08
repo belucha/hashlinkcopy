@@ -1,171 +1,127 @@
 ﻿using System;
-using System.IO;
-using System.Diagnostics;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.IO;
+using System.Windows.Forms;
 
 namespace de.intronik.hashlinkcopy
 {
-    public class Monitor
+    public class Monitor 
     {
+        long processedFiles;
+        long processedDirectories;
+        long skippedFiles;
+        long skippedDirectories;
+        long copiedFiles;
+        long copiedBytes;
+        long movedFiles;
+        long movedBytes;
+        long linkedFiles;
+        long linkedBytes;
+        long hashedFiles;
+        long hashedBytes;
+        long deletedFiles;
+        long deletedDirectories;
+        long createdDirectories;
+        long collisions;
+        long errors;
+        bool dryRun = false;
+        DateTime startTime = DateTime.Now;
+
+
+        string lastFolder = "";
+        string lastFile = "";
+        string lastLink = "";
+        string lastCopy = "";
+        string lastError = "";
+
         public static Monitor Root = new Monitor();
-        public bool DryRun { get; set; }
-        const string _pcCategory = @"HashLinkCopy";
 
-        enum CounterType
+        public bool DryRun
         {
-            processedFiles,
-            skippedFiles,
-            processedDir,
-            skippedDir,
-            copiedFiles,
-            linkedFiles,
-            hashedFiles,
-            movedFiles,
-            copiedBytes,
-            linkedBytes,
-            hashedBytes,
-            movedBytes,
-            deletedFiles,
-            collisions,
-            errors,
-            max,
-        };
-
-        class Counter
-        {
-            PerformanceCounter pcCount;
-            PerformanceCounter pcPerSecond;
-            public CounterType CounterType { get; private set; }
-            public long Count { get; private set; }
-            public Counter(CounterType counterType)
-            {
-                this.CounterType = counterType;
-            }
-            public void CreatePc()
-            {
-                pcPerSecond = new PerformanceCounter(_pcCategory, CounterNamePerSecond, "", false);
-                pcCount = new PerformanceCounter(_pcCategory, CounterNameTotal, "", false);
-            }
-
-            string CounterNamePerSecond { get { return String.Format("{0}_PerSecond", CounterType); } }
-            string CounterNameTotal { get { return String.Format("{0}_Total", CounterType); } }
-
-            public bool RecreatePcRequired()
-            {
-                return
-                    !(PerformanceCounterCategory.CounterExists(CounterNamePerSecond, _pcCategory) &&
-                    PerformanceCounterCategory.CounterExists(CounterNameTotal, _pcCategory));
-
-            }
-
-            public IEnumerable<CounterCreationData> CreateCounters()
-            {
-                yield return new CounterCreationData(String.Format(CounterNameTotal, CounterType), "", PerformanceCounterType.NumberOfItems64);
-                yield return new CounterCreationData(String.Format(CounterNamePerSecond, CounterType), "", PerformanceCounterType.RateOfCountsPerSecond32);
-            }
-
-
-            public void Increment()
-            {
-                Count++;
-                if (pcCount != null)
-                {
-                    pcCount.Increment();
-                    pcPerSecond.Increment();
-                }
-            }
-            public void Increment(long value)
-            {
-                Count += value;
-                if (pcCount != null)
-                {
-                    pcCount.IncrementBy(value);
-                    pcPerSecond.IncrementBy(value);
-                }
-            }
+            get { return this.dryRun; }
+            set { this.dryRun = value; }
         }
 
-        Counter[] counters;
-        public bool EnablePC { get; set; }
+        static string FixWidth(string s, int width)
+        {
+            return s.Substring(Math.Max(0, s.Length - width)).PadRight(width);
+        }
+
+        void PrintIt(string key, int keyLen, object value, int valueLen)
+        {
+            Console.Write("{0}: {1}", FixWidth(key, keyLen), FixWidth(value.ToString(), valueLen));
+            if (Console.CursorLeft != 0)
+                Console.SetCursorPosition(0, Console.CursorTop + 1);
+        }
+
+        void PrintInfo()
+        {
+            if (Logger.VERBOSITY > Logger.Verbosity.None) return;
+            Console.SetCursorPosition(0, 0);
+            var kl = 20;
+            var vl = Console.WindowWidth - 2 - kl;
+            PrintIt("Elapsed", kl, DateTime.Now.Subtract(this.startTime), vl);
+            PrintIt("Processed files", kl, this.processedFiles, vl);
+            PrintIt("Processed folders", kl, this.processedDirectories, vl);
+            PrintIt("Linked files", kl, this.linkedFiles, vl);
+            PrintIt("Copied files", kl, this.copiedFiles, vl);
+            PrintIt("Linked bytes", kl, FormatBytes(this.linkedBytes), vl);
+            PrintIt("Copied bytes", kl, FormatBytes(this.copiedBytes), vl);
+            PrintIt("Last directory", kl, lastFolder, vl);
+            PrintIt("Last file", kl, lastFile, vl);
+            PrintIt("Last linked", kl, lastLink, vl);
+            PrintIt("Last copied", kl, lastCopy, vl);
+            PrintIt("Last error", kl, lastError, vl);
+        }
 
         public Monitor()
         {
-            this.EnablePC = false;
-            this.counters = Enumerable
-                    .Range(0, (int)CounterType.max)
-                    .Select(i => (CounterType)i)
-                    .Select(c => new Counter(c))
-                    .ToArray();
         }
 
-        public void Init()
+        public void ProcessFile(string path)
         {
-            if (this.EnablePC)
-                try
-                {
-                    if (!PerformanceCounterCategory.Exists(_pcCategory) || this.counters.Any(counter => counter.RecreatePcRequired()))
-                    {
-                        Logger.WriteLine(Logger.Verbosity.Verbose, "Creating performance counters...");
-                        if (PerformanceCounterCategory.Exists(_pcCategory))
-                            PerformanceCounterCategory.Delete(_pcCategory);
-                        PerformanceCounterCategory.Create(_pcCategory, @"HashLinkCopy performance counter", PerformanceCounterCategoryType.SingleInstance, new CounterCreationDataCollection(this.counters.SelectMany(c => c.CreateCounters()).ToArray()));
-                        Logger.WriteLine(Logger.Verbosity.Verbose, "...succcess!");
-                    }
-                    else
-                        Logger.WriteLine(Logger.Verbosity.Verbose, "Performance already registered!");
-                    foreach (var c in this.counters)
-                        c.CreatePc();
-                }
-                catch (Exception error)
-                {
-                    Logger.Warning("Failed to register performance counters! Make sure the program as administrive priveliges once!\nMessage {0}: {1}", error.GetType().Name, error.Message);
-                }
-        }
-
-        void Count(CounterType counter)
-        {
-            this.counters[(int)counter].Increment();
-        }
-        void Count(CounterType counter, long size)
-        {
-            this.counters[(int)counter].Increment(size);
-        }
-
-        public static void ProcessFile(string path)
-        {
-            Root.Count(CounterType.processedFiles);
+            this.lastFile = path;
+            this.processedFiles++;
             Logger.WriteLine(Logger.Verbosity.Debug, "FILE: {0}", path);
+            PrintInfo();
         }
-        public static void ProcessDirectory(string path)
+        public void ProcessDirectory(string path)
         {
-            Root.Count(CounterType.processedDir);
-            Logger.WriteLine(Logger.Verbosity.Verbose, "FOLDER: {0}", path);
+            this.processedDirectories++;
+            this.lastFolder = path;
+            Logger.WriteLine(Logger.Verbosity.Debug, "FOLDER: {0}", path);
+            PrintInfo();
         }
-        public static void SkipFile(string path, string reason)
+        public void SkipFile(string path, string reason)
         {
-            Root.Count(CounterType.skippedFiles);
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Skipping file '{0}': {1}", path, reason);
+            this.skippedFiles++;
+            Logger.WriteLine(Logger.Verbosity.Debug, "Skipping file '{0}': {1}", path, reason);
         }
-        public static void SkipDirectory(string path, string reason)
+        public void SkipDirectory(string path, string reason)
         {
-            Root.Count(CounterType.skippedDir);
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Skipping folder '{0}': {1}", path, reason);
+            this.skippedDirectories++;
+            Logger.WriteLine(Logger.Verbosity.Debug, "Skipping folder '{0}': {1}", path, reason);
         }
-        public static void CopyFile(string source, string dest, long size)
+        public void CopyFile(string source, string dest, long size)
         {
-            if (!Root.DryRun) File.Copy(source, dest);
-            Root.Count(CounterType.copiedFiles);
-            Root.Count(CounterType.copiedBytes, size);
+            if (!this.dryRun) File.Copy(source, dest);
+            this.copiedFiles++;
+            this.copiedBytes += size;
+            this.lastCopy = source;
             Logger.WriteLine(Logger.Verbosity.Verbose, "Copy file '{0}' to '{1}'", source, dest);
         }
-        public static bool LinkFile(string source, string dest, long size)
+        public bool LinkFile(string source, string dest, long size)
         {
-            if (Root.DryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero))
+            if (this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero))
             {
-                Root.Count(CounterType.linkedFiles);
-                Root.Count(CounterType.linkedBytes, size);
+                this.linkedFiles++;
+                this.linkedBytes += size;
+                this.lastLink = source;
                 Logger.WriteLine(Logger.Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
                 return true;
             }
@@ -173,66 +129,112 @@ namespace de.intronik.hashlinkcopy
                 return false;
         }
 
-        private static void DeleteFileSystemInfo(FileSystemInfo fsi)
+        private void DeleteFileSystemInfo(FileSystemInfo fsi)
         {
-            if (!Root.DryRun)
+            if (this.dryRun)
                 fsi.Attributes = FileAttributes.Normal;
             var di = fsi as DirectoryInfo;
-            Root.Count(CounterType.deletedFiles);
+            this.deletedFiles++;
             if (di != null)
                 foreach (var dirInfo in di.GetFileSystemInfos())
                     DeleteFileSystemInfo(dirInfo);
-            if (!Root.DryRun)
+            if (!this.dryRun)
                 fsi.Delete();
         }
 
-        public static void DeleteDirectory(string path)
+        public void DeleteDirectory(string path)
         {
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Deleting directory '{0}'", path);
-            Monitor.DeleteFileSystemInfo(new DirectoryInfo(path));
+            this.deletedDirectories++;
+            Logger.WriteLine(Logger.Verbosity.Debug, "Deleting directory '{0}'", path);
+            this.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
-        public static void DeleteFile(string path)
+        public void DeleteFile(string path)
         {
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Deleting file '{0}'", path);
-            Monitor.DeleteFileSystemInfo(new FileInfo(path));
+            this.deletedFiles++;
+            this.lastFile = path;
+            Logger.WriteLine(Logger.Verbosity.Debug, "Deleting file '{0}'", path);
+            this.DeleteFileSystemInfo(new FileInfo(path));
         }
 
-        public static void CreateDirectory(string path)
+        public void CreateDirectory(string path)
         {
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Creating Directory '{0}'", path);
-            if (!Root.DryRun) Directory.CreateDirectory(path);
+            this.createdDirectories++;
+            Logger.WriteLine(Logger.Verbosity.Debug, "Creating Directory '{0}'", path);
+            if (!this.dryRun) Directory.CreateDirectory(path);
         }
 
-        public static void MoveFile(string source, string dest, long size)
+        public void MoveFile(string source, string dest, long size)
         {
-            if (!Root.DryRun) File.Move(source, dest);
-            Root.Count(CounterType.movedFiles);
-            Root.Count(CounterType.movedBytes, size);
+            if (!this.dryRun) File.Move(source, dest);
+            this.movedFiles++;
+            this.movedBytes += size;
             Logger.WriteLine(Logger.Verbosity.Verbose, "Moving file '{0}' to '{1}'", source, dest);
         }
-        public static void HashFile(string source, long size)
+        public void HashFile(string source, long size)
         {
-            Root.Count(CounterType.hashedFiles);
-            Root.Count(CounterType.hashedBytes, size);
-            Logger.WriteLine(Logger.Verbosity.Verbose, "SHA1 of '{0}' ({1}byte)", source, size);
+            this.hashedFiles++;
+            this.hashedBytes += size;
+            Logger.WriteLine(Logger.Verbosity.Debug, "SHA1 of '{0}' ({1}byte)", source, size);
         }
-        public static void HashCollision(string path1, string path2)
+        public void HashCollision(string path1, string path2)
         {
-            Root.Count(CounterType.collisions);
+            this.collisions++;
             Logger.WriteLine(Logger.Verbosity.Error, "Hash Collision '{0}'<->'{1}'", path1, path2);
         }
-        public static void Error(string path, Exception error)
+        public void Error(string path, Exception error)
         {
-            Root.Count(CounterType.errors);
+            this.errors++;
+            this.lastError = error.Message;
             Logger.Error("{0}:{1} processing '{2}'", error.GetType().Name, error.Message, path);
         }
 
-        public static void PrintStatistics()
+        enum FileSizeUnit
         {
-            foreach (var c in Root.counters)
-                Logger.WriteLine(Logger.Verbosity.Message, "{0,-20}: {1}", c.CounterType, c.Count);
+            Byte,
+            KB,
+            MB,
+            GB,
+            TB,
+            Max,
+        };
+
+        public static string FormatBytes(long count)
+        {
+            var unit = FileSizeUnit.Byte;
+            while ((count >> (10 * (int)unit)) > 1024) unit++;
+            var b = new StringBuilder();
+            while (unit >= FileSizeUnit.Byte)
+            {
+                var divider = (long)1 << (10 * (int)unit);
+                if (b.Length > 0)
+                    b.Append(' ');
+                b.AppendFormat("{0}{1}", count / divider, unit);
+                count %= divider;
+                unit--;
+            }
+            return b.ToString();
+
+        }
+
+        public void PrintStatistics()
+        {
+            Logger.PrintInfo("processedFiles", processedFiles);
+            Logger.PrintInfo("processedDirectories", processedDirectories);
+            Logger.PrintInfo("skippedFiles", skippedFiles);
+            Logger.PrintInfo("copiedFiles", copiedFiles);
+            Logger.PrintInfo("copiedBytes", FormatBytes(copiedBytes));
+            Logger.PrintInfo("movedFiles", movedFiles);
+            Logger.PrintInfo("movedBytes", FormatBytes(movedBytes));
+            Logger.PrintInfo("linkedFiles", linkedFiles);
+            Logger.PrintInfo("linkedBytes", FormatBytes(linkedBytes));
+            Logger.PrintInfo("hashedFiles", hashedFiles);
+            Logger.PrintInfo("hashedBytes", FormatBytes(hashedBytes));
+            Logger.PrintInfo("deletedFiles", deletedFiles);
+            Logger.PrintInfo("deletedDirectories", deletedDirectories);
+            Logger.PrintInfo("createdDirectories", createdDirectories);
+            Logger.PrintInfo("collisions", collisions);
+            Logger.PrintInfo("errors", errors);
         }
     }
-
 }
