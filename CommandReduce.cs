@@ -50,7 +50,7 @@ e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "YYYY-MM-DD_HH.NN")]
             if (option.Name == "RuleFile")
             {
                 var fn = Path.GetFullPath(option.Value);
-                Logger.WriteLine(Logger.Verbosity.Message, "Reading reduce rules from '{0}'..", fn);
+                Logger.Root.WriteLine(Verbosity.Message, "Reading reduce rules from '{0}'..", fn);
                 var lines = File.ReadAllLines(fn)
                     // trim comments
                     .Select(line => { var i = line.IndexOf(';'); return (i < 0 ? line : line.Substring(0, i)).Trim(' ', '\t', '\n', '\a', '\r'); })
@@ -112,7 +112,7 @@ e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "YYYY-MM-DD_HH.NN")]
             var backups = BackupFolder.GetBackups(this.Folder, this.Pattern).OrderByDescending(b => b.BackupDate).ToList();
             if (backups.Count < 1)
             {
-                Logger.Warning("No backups found, that match the specified pattern {0}!", Pattern);
+                Logger.Root.Warning("No backups found, that match the specified pattern {0}!", Pattern);
                 return;
             }
             var end = backups[0].BackupDate;
@@ -135,21 +135,21 @@ e.g. *YYYY-MM-DD_HH.NN.SS*", Default = "YYYY-MM-DD_HH.NN")]
             });
             foreach (var rule in this.Rules)
                 remove(rule.Interval, rule.Count);
-            Logger.WriteLine(Logger.Verbosity.Message, "keeping {0} folders:", backups.Count);
+            Logger.Root.WriteLine(Verbosity.Message, "keeping {0} folders:", backups.Count);
             foreach (var backup in backups)
-                Logger.WriteLine(Logger.Verbosity.Message, "\t+ {0}", backup.Folder);
+                Logger.Root.WriteLine(Verbosity.Message, "\t+ {0}", backup.Folder);
             foreach (var f in this.DeletedFolders)
             {
-                Logger.WriteLine(Logger.Verbosity.Message, "Deleting backup folder {0}...", f);
+                Logger.Root.WriteLine(Verbosity.Message, "Deleting backup folder {0}...", f);
                 var start = DateTime.Now;
                 try
                 {
                     Monitor.Root.DeleteDirectory(f);
-                    Logger.WriteLine(Logger.Verbosity.Message, "...completed after {0}", DateTime.Now.Subtract(start));
+                    Logger.Root.WriteLine(Verbosity.Message, "...completed after {0}", DateTime.Now.Subtract(start));
                 }
                 catch (Exception error)
                 {
-                    Logger.Error("...failed with {0}: {1} after {2}", error.GetType().Name, error.Message, DateTime.Now.Subtract(start));
+                    Logger.Root.Error("...failed with {0}: {1} after {2}", error.GetType().Name, error.Message, DateTime.Now.Subtract(start));
                 }
             }
         }

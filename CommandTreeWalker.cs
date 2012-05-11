@@ -32,7 +32,8 @@ examples:
         {
             e.Cancel = true;
             cancel = true;
-            Logger.WriteLine(Logger.Verbosity.Error, "ABORT REQUESTED!");
+            Console.WriteLine("ABORT REQUESTED!");
+            Logger.Root.WriteLine(Verbosity.Error, "ABORT REQUESTED!");
         }
 
         public override void Init(string[] parameters)
@@ -108,7 +109,7 @@ examples:
         protected string RebasePath(string sourcePath, string newBasePath)
         {
             var subPath = sourcePath.Substring(this.Folder.Length).TrimStart('\\');
-            return Path.Combine(newBasePath, subPath);
+            return String.IsNullOrEmpty(newBasePath) ? subPath : Path.Combine(newBasePath, subPath);
         }
 
         protected void Process(DirectoryInfo dirInfo, int level)
@@ -116,7 +117,8 @@ examples:
             var path = dirInfo.FullName;
             try
             {
-                if (this.ExcludeList.Exclude(path.EndsWith(@"\") ? path : (path + @"\")))
+                var dir = RebasePath(path, null);
+                if (this.ExcludeList.Exclude(dir.EndsWith(@"\") ? dir : (dir + @"\")))
                 {
                     Monitor.Root.SkipDirectory(path, "exclude list match");
                     return;

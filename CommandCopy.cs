@@ -184,35 +184,37 @@ namespace de.intronik.hashlinkcopy
                 this.HashDir = String.IsNullOrEmpty(this.HashDir) ? Path.Combine(this.Target, @"..\Hash") : this.HashDir;
             this.Target = Path.GetFullPath(this.Target);
             Directory.CreateDirectory(this.Target);
-            Logger.LOGFILE = Path.Combine(this.Target, "Backup.log");
-            Logger.PrintInfo("CommandLine", Environment.CommandLine);
+            Logger.Root.Logfilename = Path.Combine(this.Target, "Backup.log");
             this.HashDir = Path.GetFullPath(this.HashDir);
             // search for old backups
             if (!String.IsNullOrEmpty(this.PrevBackupFolderRoot))
             {
                 if (!this.PrevBackupFolderRoot.EndsWith("\\"))
                     this.PrevBackupFolderRoot += "\\";
-                Logger.PrintInfo("Backup folder", "{0}{1}{2}", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
+                Logger.Root.PrintInfo("Backup folder", "{0}{1}{2}", this.PrevBackupFolderRoot, wildCardPos >= 0 ? @"\*\" : "", backupFolderSuffix);
                 var backups = BackupFolder.GetBackups(this.PrevBackupFolderRoot, this.Pattern).OrderByDescending(backup => backup.BackupDate).ToArray();
-                Logger.WriteLine(Logger.Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.Pattern);
+                Logger.Root.WriteLine(Verbosity.Message, "Found {0} previous backups in {1}, matching pattern {2}", backups.Length, this.PrevBackupFolderRoot, this.Pattern);
                 if (backups.Length > 0)
                 {
                     var newestBackup = backups[0];
                     this.PreviousBackup = newestBackup.Folder + "\\" + backupFolderSuffix;
-                    Logger.PrintInfo("Previous backup folder", this.PreviousBackup);
+                    Logger.Root.PrintInfo("Previous backup folder", this.PreviousBackup);
                 }
             }
-            Logger.PrintInfo("Pattern", this.Pattern);
-            Logger.PrintInfo("Source folder", this.Folder);
-            Logger.PrintInfo("Target folder", this.Target);
-            Logger.PrintInfo("Hash folder", this.HashDir);
+            Logger.Root.PrintInfo("Pattern", this.Pattern);
+            Logger.Root.PrintInfo("Source folder", this.Folder);
+            Logger.Root.PrintInfo("Target folder", this.Target);
+            Logger.Root.PrintInfo("Hash folder", this.HashDir);
             // prepare background jobs
             this.backgroundJobs = new Semaphore(maxBackgroundJobs, maxBackgroundJobs);
             base.Run();
-            Logger.WriteLine(Logger.Verbosity.Message, "Waiting for background jobs to complete...");
+            Console.Write("Waiting for background jobs to complete...");
             for (var i = 0; i < maxBackgroundJobs; i++)
+            {
                 this.backgroundJobs.WaitOne();
-            Logger.WriteLine(Logger.Verbosity.Message, "Background jobs completed.");
+                Console.Write(".");
+            }
+            Console.WriteLine("done.");
             this.backgroundJobs.Close();
         }
     }

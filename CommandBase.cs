@@ -8,7 +8,7 @@ using System.Text;
 
 namespace de.intronik.hashlinkcopy
 {
-    [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
+    [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "None")]
     [Option("DryRun", Help = "Disables any disk operations")]
     [Option("LogVerb", Help = "verbosity of the log file messages", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
     [Option("EnablePC", Help = "enable window performance counters", Description = "false,true", Default = "false")]
@@ -38,9 +38,9 @@ namespace de.intronik.hashlinkcopy
         protected virtual void ProcessOption(OptionAttribute option)
         {
             if (option.Name == "Verbosity")
-                Logger.VERBOSITY = option.ParseAsEnum<Logger.Verbosity>();
+                Logger.Root.Verbosity = option.ParseAsEnum<Verbosity>();
             if (option.Name == "LogVerb")
-                Logger.LOGVERB = option.ParseAsEnum<Logger.Verbosity>();
+                Logger.Root.LogfileVerbosity = option.ParseAsEnum<Verbosity>();
             if (option.Name == "DryRun")
                 Monitor.Root.DryRun = option.ParseAsBoolean();
         }

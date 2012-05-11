@@ -42,7 +42,7 @@ namespace de.intronik.hashlinkcopy
                 }
                 catch (Exception error)
                 {
-                    Logger.WriteLine(Logger.Verbosity.Debug, "Reading cached SHA1 of {0} failed with {1}:{2}", filename, error.GetType().Name, error.Message);
+                    Logger.Root.WriteLine(Verbosity.Debug, "Reading cached SHA1 of {0} failed with {1}:{2}", filename, error.GetType().Name, error.Message);
                 }
             else
             {
@@ -80,7 +80,7 @@ namespace de.intronik.hashlinkcopy
                     }
                     catch (Exception error)
                     {
-                        Logger.Warning("Saving HashInfo of '{0}' failed with {1}:{2}", filename, error.GetType().Name, error.Message);
+                        Logger.Root.Warning("Saving HashInfo of '{0}' failed with {1}:{2}", filename, error.GetType().Name, error.Message);
                     }
                 }
             }

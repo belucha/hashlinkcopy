@@ -10,7 +10,7 @@ using System.Windows.Forms;
 
 namespace de.intronik.hashlinkcopy
 {
-    public class Monitor 
+    public class Monitor
     {
         long processedFiles;
         long processedDirectories;
@@ -61,7 +61,7 @@ namespace de.intronik.hashlinkcopy
 
         void PrintInfo()
         {
-            if (Logger.VERBOSITY > Logger.Verbosity.None) return;
+            if (Logger.Root.Verbosity > Verbosity.None) return;
             Console.SetCursorPosition(0, 0);
             var kl = 20;
             var vl = Console.WindowWidth - 2 - kl;
@@ -69,9 +69,13 @@ namespace de.intronik.hashlinkcopy
             PrintIt("Processed files", kl, this.processedFiles, vl);
             PrintIt("Processed folders", kl, this.processedDirectories, vl);
             PrintIt("Linked files", kl, this.linkedFiles, vl);
-            PrintIt("Copied files", kl, this.copiedFiles, vl);
             PrintIt("Linked bytes", kl, FormatBytes(this.linkedBytes), vl);
+            PrintIt("Copied files", kl, this.copiedFiles, vl);
             PrintIt("Copied bytes", kl, FormatBytes(this.copiedBytes), vl);
+            PrintIt("Moved files", kl, this.movedFiles, vl);
+            PrintIt("Moved bytes", kl, FormatBytes(this.movedBytes), vl);
+            PrintIt("Hashed files", kl, this.hashedFiles, vl);
+            PrintIt("Hashed bytes", kl, FormatBytes(this.hashedBytes), vl);
             PrintIt("Last directory", kl, lastFolder, vl);
             PrintIt("Last file", kl, lastFile, vl);
             PrintIt("Last linked", kl, lastLink, vl);
@@ -87,25 +91,25 @@ namespace de.intronik.hashlinkcopy
         {
             this.lastFile = path;
             this.processedFiles++;
-            Logger.WriteLine(Logger.Verbosity.Debug, "FILE: {0}", path);
+            Logger.Root.WriteLine(Verbosity.Debug, "FILE: {0}", path);
             PrintInfo();
         }
         public void ProcessDirectory(string path)
         {
             this.processedDirectories++;
             this.lastFolder = path;
-            Logger.WriteLine(Logger.Verbosity.Debug, "FOLDER: {0}", path);
+            Logger.Root.WriteLine(Verbosity.Debug, "FOLDER: {0}", path);
             PrintInfo();
         }
         public void SkipFile(string path, string reason)
         {
             this.skippedFiles++;
-            Logger.WriteLine(Logger.Verbosity.Debug, "Skipping file '{0}': {1}", path, reason);
+            Logger.Root.WriteLine(Verbosity.Debug, "Skipping file '{0}': {1}", path, reason);
         }
         public void SkipDirectory(string path, string reason)
         {
             this.skippedDirectories++;
-            Logger.WriteLine(Logger.Verbosity.Debug, "Skipping folder '{0}': {1}", path, reason);
+            Logger.Root.WriteLine(Verbosity.Debug, "Skipping folder '{0}': {1}", path, reason);
         }
         public void CopyFile(string source, string dest, long size)
         {
@@ -113,7 +117,7 @@ namespace de.intronik.hashlinkcopy
             this.copiedFiles++;
             this.copiedBytes += size;
             this.lastCopy = source;
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Copy file '{0}' to '{1}'", source, dest);
+            Logger.Root.WriteLine(Verbosity.Verbose, "Copy file '{0}' to '{1}'", source, dest);
         }
         public bool LinkFile(string source, string dest, long size)
         {
@@ -122,7 +126,7 @@ namespace de.intronik.hashlinkcopy
                 this.linkedFiles++;
                 this.linkedBytes += size;
                 this.lastLink = source;
-                Logger.WriteLine(Logger.Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
+                Logger.Root.WriteLine(Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
                 return true;
             }
             else
@@ -145,7 +149,7 @@ namespace de.intronik.hashlinkcopy
         public void DeleteDirectory(string path)
         {
             this.deletedDirectories++;
-            Logger.WriteLine(Logger.Verbosity.Debug, "Deleting directory '{0}'", path);
+            Logger.Root.WriteLine(Verbosity.Debug, "Deleting directory '{0}'", path);
             this.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
@@ -153,14 +157,14 @@ namespace de.intronik.hashlinkcopy
         {
             this.deletedFiles++;
             this.lastFile = path;
-            Logger.WriteLine(Logger.Verbosity.Debug, "Deleting file '{0}'", path);
+            Logger.Root.WriteLine(Verbosity.Debug, "Deleting file '{0}'", path);
             this.DeleteFileSystemInfo(new FileInfo(path));
         }
 
         public void CreateDirectory(string path)
         {
             this.createdDirectories++;
-            Logger.WriteLine(Logger.Verbosity.Debug, "Creating Directory '{0}'", path);
+            Logger.Root.WriteLine(Verbosity.Debug, "Creating Directory '{0}'", path);
             if (!this.dryRun) Directory.CreateDirectory(path);
         }
 
@@ -169,24 +173,24 @@ namespace de.intronik.hashlinkcopy
             if (!this.dryRun) File.Move(source, dest);
             this.movedFiles++;
             this.movedBytes += size;
-            Logger.WriteLine(Logger.Verbosity.Verbose, "Moving file '{0}' to '{1}'", source, dest);
+            Logger.Root.WriteLine(Verbosity.Verbose, "Moving file '{0}' to '{1}'", source, dest);
         }
         public void HashFile(string source, long size)
         {
             this.hashedFiles++;
             this.hashedBytes += size;
-            Logger.WriteLine(Logger.Verbosity.Debug, "SHA1 of '{0}' ({1}byte)", source, size);
+            Logger.Root.WriteLine(Verbosity.Debug, "SHA1 of '{0}' ({1}byte)", source, size);
         }
         public void HashCollision(string path1, string path2)
         {
             this.collisions++;
-            Logger.WriteLine(Logger.Verbosity.Error, "Hash Collision '{0}'<->'{1}'", path1, path2);
+            Logger.Root.WriteLine(Verbosity.Error, "Hash Collision '{0}'<->'{1}'", path1, path2);
         }
         public void Error(string path, Exception error)
         {
             this.errors++;
             this.lastError = error.Message;
-            Logger.Error("{0}:{1} processing '{2}'", error.GetType().Name, error.Message, path);
+            Logger.Root.Error("{0}:{1} processing '{2}'", error.GetType().Name, error.Message, path);
         }
 
         enum FileSizeUnit
@@ -219,22 +223,22 @@ namespace de.intronik.hashlinkcopy
 
         public void PrintStatistics()
         {
-            Logger.PrintInfo("processedFiles", processedFiles);
-            Logger.PrintInfo("processedDirectories", processedDirectories);
-            Logger.PrintInfo("skippedFiles", skippedFiles);
-            Logger.PrintInfo("copiedFiles", copiedFiles);
-            Logger.PrintInfo("copiedBytes", FormatBytes(copiedBytes));
-            Logger.PrintInfo("movedFiles", movedFiles);
-            Logger.PrintInfo("movedBytes", FormatBytes(movedBytes));
-            Logger.PrintInfo("linkedFiles", linkedFiles);
-            Logger.PrintInfo("linkedBytes", FormatBytes(linkedBytes));
-            Logger.PrintInfo("hashedFiles", hashedFiles);
-            Logger.PrintInfo("hashedBytes", FormatBytes(hashedBytes));
-            Logger.PrintInfo("deletedFiles", deletedFiles);
-            Logger.PrintInfo("deletedDirectories", deletedDirectories);
-            Logger.PrintInfo("createdDirectories", createdDirectories);
-            Logger.PrintInfo("collisions", collisions);
-            Logger.PrintInfo("errors", errors);
+            Logger.Root.PrintInfo("processedFiles", processedFiles);
+            Logger.Root.PrintInfo("processedDirectories", processedDirectories);
+            Logger.Root.PrintInfo("skippedFiles", skippedFiles);
+            Logger.Root.PrintInfo("copiedFiles", copiedFiles);
+            Logger.Root.PrintInfo("copiedBytes", FormatBytes(copiedBytes));
+            Logger.Root.PrintInfo("movedFiles", movedFiles);
+            Logger.Root.PrintInfo("movedBytes", FormatBytes(movedBytes));
+            Logger.Root.PrintInfo("linkedFiles", linkedFiles);
+            Logger.Root.PrintInfo("linkedBytes", FormatBytes(linkedBytes));
+            Logger.Root.PrintInfo("hashedFiles", hashedFiles);
+            Logger.Root.PrintInfo("hashedBytes", FormatBytes(hashedBytes));
+            Logger.Root.PrintInfo("deletedFiles", deletedFiles);
+            Logger.Root.PrintInfo("deletedDirectories", deletedDirectories);
+            Logger.Root.PrintInfo("createdDirectories", createdDirectories);
+            Logger.Root.PrintInfo("collisions", collisions);
+            Logger.Root.PrintInfo("errors", errors);
         }
     }
 }

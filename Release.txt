@@ -1,4 +1,8 @@
 ﻿HashLinkCopy release notes:
+v1.9.1 2012-05-08 11:00
+	- fixed logger output
+	- exclude file list works
+
 v1.8 2012-05-08 11:00
 	- # of background jobs limited to 50
 	- Control-C terminates the program gracefully
