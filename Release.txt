@@ -1,5 +1,8 @@
 ﻿HashLinkCopy release notes:
-v1.9.1 2012-05-08 11:00
+v1.9.2 2012-05-11 17:00
+	- runs with system file enumerator
+
+v1.9.1 2012-05-11 11:00
 	- fixed logger output
 	- exclude file list works
 

@@ -76,7 +76,7 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <returns>true to cancel processing</returns>
-        protected virtual bool CancelEnterDirectory(DirectoryInfo dirInfo, int level)
+        protected virtual bool CancelEnterDirectory(FileData dirInfo, int level)
         {
             return false;
         }
@@ -86,7 +86,7 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <param name="level"></param>
-        protected virtual void LeaveDirectory(DirectoryInfo dirInfo, int level)
+        protected virtual void LeaveDirectory(FileData dirInfo, int level)
         {
         }
         /// <summary>
@@ -94,7 +94,7 @@ examples:
         /// </summary>
         /// <param name="path"></param>
         /// <param name="level"></param>
-        protected abstract void ProcessFile(FileInfo file, int level);
+        protected abstract void ProcessFile(FileData file, int level);
 
         /// <summary>
         /// Returns the coresponding target path for a given source path
@@ -112,9 +112,9 @@ examples:
             return String.IsNullOrEmpty(newBasePath) ? subPath : Path.Combine(newBasePath, subPath);
         }
 
-        protected void Process(DirectoryInfo dirInfo, int level)
+        protected void Process(FileData dirInfo, int level)
         {
-            var path = dirInfo.FullName;
+            var path = dirInfo.Path;
             try
             {
                 var dir = RebasePath(path, null);
@@ -132,33 +132,34 @@ examples:
                 //
                 // PROCESS SUBENTRIES
                 //
-                foreach (var entry in dirInfo.GetFileSystemInfos())
-                {
-                    if (this.cancel) break;
-                    var subDir = entry as DirectoryInfo;
-                    if (subDir != null)
-                        this.Process(subDir, level + 1);
-                    else
+                using (var e = new FileEnumerator(path))
+                    while (e.MoveNext())
                     {
-                        var filename = entry.FullName;
+                        if (this.cancel) break;
+                        var entry = e.Current;
+                        if (entry.IsDirectory)
+                            this.Process(entry, level + 1);
+                        else
+                        {
+                            var filename = entry.Path;
 
-                        try
-                        {
-                            if (this.ExcludeList.Exclude(filename))
+                            try
                             {
-                                Monitor.Root.SkipFile(filename, "exclude list match");
-                                continue;
+                                if (this.ExcludeList.Exclude(filename))
+                                {
+                                    Monitor.Root.SkipFile(filename, "exclude list match");
+                                    continue;
+                                }
+                                Monitor.Root.ProcessFile(filename);
+                                this.ProcessFile(entry, level);
+                                if (this.cancel) break;
                             }
-                            Monitor.Root.ProcessFile(filename);
-                            this.ProcessFile(entry as FileInfo, level);
-                            if (this.cancel) break;
-                        }
-                        catch (Exception error)
-                        {
-                            Monitor.Root.Error(filename, error);
+                            catch (Exception error)
+                            {
+                                Monitor.Root.Error(filename, error);
+                            }
                         }
                     }
-                }
 
                 //
                 // LEAVE DIR
@@ -173,7 +174,7 @@ examples:
 
         public override void Run()
         {
-            Process(new DirectoryInfo(this.Folder), 0);
+            Process(new FileData(this.Folder), 0);
         }
 
     }
