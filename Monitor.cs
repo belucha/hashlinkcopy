@@ -68,7 +68,7 @@ namespace de.intronik.hashlinkcopy
             PrintIt("Elapsed", kl, DateTime.Now.Subtract(this.startTime), vl);
             PrintIt("Processed files", kl, this.processedFiles, vl);
             PrintIt("Processed folders", kl, this.processedDirectories, vl);
-            PrintIt("Linked files", kl, this.linkedFiles, vl);
+            PrintIt("Linked files", kl, new TimeSpan(this.linkedFiles).TotalSeconds, vl);
             PrintIt("Linked bytes", kl, FormatBytes(this.linkedBytes), vl);
             PrintIt("Copied files", kl, this.copiedFiles, vl);
             PrintIt("Copied bytes", kl, FormatBytes(this.copiedBytes), vl);
@@ -77,6 +77,7 @@ namespace de.intronik.hashlinkcopy
             PrintIt("Hashed files", kl, this.hashedFiles, vl);
             PrintIt("Hashed bytes", kl, FormatBytes(this.hashedBytes), vl);
             PrintIt("Last directory", kl, lastFolder, vl);
+            PrintIt("CreatedDirectories", kl, new TimeSpan(this.createdDirectories).TotalSeconds, vl);
             PrintIt("Last file", kl, lastFile, vl);
             PrintIt("Last linked", kl, lastLink, vl);
             PrintIt("Last copied", kl, lastCopy, vl);
@@ -121,9 +122,10 @@ namespace de.intronik.hashlinkcopy
         }
         public bool LinkFile(string source, string dest, long size)
         {
+            var s = DateTime.Now;
             if (this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero))
             {
-                this.linkedFiles++;
+                this.linkedFiles+=DateTime.Now.Subtract(s).Ticks;
                 this.linkedBytes += size;
                 this.lastLink = source;
                 Logger.Root.WriteLine(Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
@@ -165,7 +167,9 @@ namespace de.intronik.hashlinkcopy
         {
             this.createdDirectories++;
             Logger.Root.WriteLine(Verbosity.Debug, "Creating Directory '{0}'", path);
+            var s = DateTime.Now;
             if (!this.dryRun) Directory.CreateDirectory(path);
+            this.createdDirectories += DateTime.Now.Subtract(s).Ticks;
         }
 
         public void MoveFile(string source, string dest, long size)

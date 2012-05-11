@@ -51,9 +51,11 @@ namespace de.intronik.hashlinkcopy
             {
                 // create it and duplicate creation&write time and attributes
                 Monitor.Root.CreateDirectory(tf);
+#if CD
                 Directory.SetCreationTimeUtc(tf, dir.CreationTimeUtc);
                 Directory.SetLastWriteTimeUtc(tf, dir.LastWriteTimeUtc);
                 File.SetAttributes(tf, dir.Attributes);
+#endif
             }
             return false;
         }
@@ -68,17 +70,20 @@ namespace de.intronik.hashlinkcopy
                 return;
             // we have no previous directory or the file changed, or linking failed, use hash algorithm
             var hi = new HashInfo(path);
-            var hf = Path.GetFullPath(hi.GetHashPath(this.HashDir));
+            var hf = String.Intern(Path.GetFullPath(hi.GetHashPath(this.HashDir)));
             // lock the target hash path
-            lock (String.Intern(hf))
+            lock (hf)
             {
                 // check if we need to copy the file
                 if (!File.Exists(hf))
                 {
                     Monitor.Root.CreateDirectory(Path.GetDirectoryName(hf));
                     Monitor.Root.CopyFile(path, hf, info.Size);
+#if CD
                     File.SetAttributes(hf, FileAttributes.Normal);
+#endif
                 }
+#if CD
                 var hInfo = new FileInfo(hf);
                 if (hInfo.Length != info.Size)
                 {
@@ -87,6 +92,7 @@ namespace de.intronik.hashlinkcopy
                     Monitor.Root.CopyFile(path, hf, info.Size);
                     return;
                 }
+#endif
                 // create link
                 if (!Monitor.Root.LinkFile(hf, tf, info.Size))
                     Monitor.Root.MoveFile(hf, tf, info.Size); // 10bit link count overrun => move file
@@ -95,11 +101,13 @@ namespace de.intronik.hashlinkcopy
                 {
                     if (!Monitor.Root.DryRun)
                     {
+#if CD
                         // make sure the backed up files have identical attributes and write times as the original
                         File.SetAttributes(path, info.Attributes);
                         File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
                         // remove the archive attribute of the original file
                         File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
+#endif
                     }
                 }
                 catch
@@ -135,8 +143,10 @@ namespace de.intronik.hashlinkcopy
         {
             base.LeaveDirectory(dir, level);
             // at this point we can set the last write time of the copied directory
+#if CD
             if (!Monitor.Root.DryRun)
                 Directory.SetLastWriteTimeUtc(this.RebasePath(dir.Path, this.Target), dir.LastWriteTimeUtc);
+#endif
         }
 
         public override void Run()
