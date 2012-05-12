@@ -19,7 +19,7 @@ examples:
         public string Folder { get; protected set; }
         public ExcludeList ExcludeList { get; private set; }
         public string HashDir { get; protected set; }
-        bool cancel = false;
+        protected bool cancel = false;
 
         public CommandTreeWalker()
         {
@@ -48,7 +48,7 @@ examples:
         protected override void ProcessOption(OptionAttribute option)
         {
             base.ProcessOption(option);
-            if (option.Name == "HashDir") this.HashDir = option.ParseAsString();
+            if (option.Name == "HashDir") this.HashDir = option.ParseAsString().ToLower();
             else if (option.Name == "Exclude") this.ExcludeList = new ExcludeList(option.Value);
             else if (option.Name == "HashCacheLimit")
             {

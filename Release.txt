@@ -1,4 +1,7 @@
 ﻿HashLinkCopy release notes:
+v2.0.0 2012-05-12 22:00
+	- profiler optimized version
+	- increased from 3000fps to 20000 fps
 v1.9.1 2012-05-08 11:00
 	- fixed logger output
 	- exclude file list works

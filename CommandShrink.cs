@@ -10,16 +10,16 @@ namespace de.intronik.hashlinkcopy
     [Description(@"tries to replace duplicates by hardlinks")]
     class CommandShrink : CommandTreeWalker
     {
+        static System.Security.Cryptography.SHA1 SHA1 = System.Security.Cryptography.SHA1.Create();
         protected override void ProcessFile(FileInfo info, int level)
         {
-            var path = info.FullName;
-            var hi = new HashInfo(path);
+            var hi = new HashInfo(info, CommandShrink.SHA1);
             var hf = Path.GetFullPath(hi.GetHashPath(HashDir));
             // check if we need to copy the file
             if (!File.Exists(hf))
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(hf));
-                Monitor.Root.MoveFile(path, hf, info.Length);
+                Monitor.Root.MoveFile(info.FullName, hf, info.Length);
                 File.SetAttributes(hf, FileAttributes.Normal);
             }
             else
@@ -27,21 +27,20 @@ namespace de.intronik.hashlinkcopy
                 var hInfo = new FileInfo(hf);
                 if (hInfo.Length != info.Length)
                 {
-                    Monitor.Root.HashCollision(hf, path);
+                    Monitor.Root.HashCollision(hf, info.FullName);
                     return;
                 }
-                File.SetAttributes(path, FileAttributes.Normal);
-                Monitor.Root.DeleteFile(path);
+                Monitor.Root.DeleteFile(info);
             }
             // create link
-            if (!Monitor.Root.LinkFile(hf, path, info.Length))
+            if (!Monitor.Root.LinkFile(hf, info.FullName, info.Length))
                 // 10bit link count overrun => move the hash file
-                Monitor.Root.MoveFile(hf, path, info.Length);
+                Monitor.Root.MoveFile(hf, info.FullName, info.Length);
             // adjust file attributes and the last write time
             try
             {
-                File.SetLastWriteTimeUtc(path, info.LastWriteTimeUtc);
-                File.SetAttributes(path, info.Attributes);
+                info.LastAccessTimeUtc = info.LastWriteTimeUtc;
+                info.Attributes = info.Attributes;
             }
             catch
             {

@@ -13,76 +13,92 @@ namespace de.intronik.hashlinkcopy
     /// </summary>    
     public class HashInfo
     {
-        SHA1 hashProvider = SHA1.Create();
         const string STREAM = @"de.Intronik.HashInfo"; // name of the ADS Stream used to store the cached hashed info
         const int SIZE = 8 + 8 + 20;
         public byte[] Hash { get; private set; }
-        public DateTime LastWriteTimeUtc { get; private set; }
-        public Int64 Length { get; private set; }
+        public DateTime LastWriteTimeUtc { get { return this.SourceFileInfo.LastWriteTimeUtc; } }
+        public Int64 Length { get { return this.SourceFileInfo.Length; } }
         public static long CacheLimit = 4 << 10;
-        public HashInfo(string filename)
+
+        public FileInfo SourceFileInfo { get; private set; }
+
+        public HashInfo(FileInfo info, HashAlgorithm hashProvider)
         {
             // check if info is still valid
-            var i = new System.IO.FileInfo(filename);
-            if (i.Length > HashInfo.CacheLimit)
-                try
-                {
-                    using (var r = new BinaryReader(new FileStream(Win32.CreateFile(filename + ":" + STREAM,
-                            FileAccess.Read,
-                            FileShare.Read,
-                            IntPtr.Zero,
-                            FileMode.Open,
-                            0,
-                            IntPtr.Zero), FileAccess.Read)))
-                    {
-                        this.LastWriteTimeUtc = new DateTime(r.ReadInt64());
-                        this.Length = r.ReadInt64();
-                        this.Hash = r.ReadBytes(20);
-                    }
-                }
-                catch (Exception error)
-                {
-                    Logger.Root.WriteLine(Verbosity.Debug, "Reading cached SHA1 of {0} failed with {1}:{2}", filename, error.GetType().Name, error.Message);
-                }
+            this.SourceFileInfo = info;
+            DateTime cachedLastWriteTime;
+            long cachedLength;
+            byte[] hash;
+            if (this.Length > HashInfo.CacheLimit)
+                ReadHashInfo(info.FullName, out cachedLastWriteTime, out cachedLength, out hash);
             else
             {
-                // the file is small in size
-                this.Length = i.Length;
-                this.LastWriteTimeUtc = i.LastWriteTimeUtc;
+                hash = null;
+                cachedLength = long.MinValue;
+                cachedLastWriteTime = DateTime.MinValue;
             }
-            if (this.Hash == null || this.Hash.Length != 20 || this.LastWriteTimeUtc != i.LastWriteTimeUtc || this.Length != i.Length)
+            if (hash == null || hash.Length != 20 || cachedLastWriteTime != this.LastWriteTimeUtc || cachedLength != this.Length)
             {
-                Monitor.Root.HashFile(filename, i.Length);
-                using (var inputStream = File.OpenRead(filename))
-                    this.Hash = hashProvider.ComputeHash(inputStream);
-                if (i.Length > HashInfo.CacheLimit)
+                this.Hash = hash = Monitor.Root.HashFile(hashProvider, info.FullName, this.Length);
+                if (this.Length > HashInfo.CacheLimit)
+                    this.SaveHashInfo();
+            }
+            else
+                this.Hash = hash;
+        }
+
+        static void ReadHashInfo(string filename, out DateTime lastWriteTime, out long length, out byte[] hash)
+        {
+            try
+            {
+                using (var r = new BinaryReader(new FileStream(Win32.CreateFile(filename + ":" + STREAM,
+                        FileAccess.Read,
+                        FileShare.Read,
+                        IntPtr.Zero,
+                        FileMode.Open,
+                        0,
+                        IntPtr.Zero), FileAccess.Read)))
                 {
-                    this.LastWriteTimeUtc = i.LastWriteTimeUtc;
-                    this.Length = i.Length;
-                    try
-                    {
-                        // remove RO attribute
-                        if ((i.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-                            File.SetAttributes(filename, i.Attributes & (~FileAttributes.ReadOnly));
-                        using (var w = new BinaryWriter(new FileStream(Win32.CreateFile(filename + ":" + STREAM,
-                            FileAccess.Write, FileShare.Write, IntPtr.Zero,
-                            FileMode.Create, 0, IntPtr.Zero), FileAccess.Write)))
-                        {
-                            w.Write(this.LastWriteTimeUtc.Ticks);
-                            w.Write(this.Length);
-                            w.Write(this.Hash);
-                        }
-                        // fix last write time, since the ADS write changes the value
-                        File.SetLastWriteTimeUtc(filename, this.LastWriteTimeUtc);
-                        // restore RO attribute
-                        if ((i.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
-                            File.SetAttributes(filename, i.Attributes);
-                    }
-                    catch (Exception error)
-                    {
-                        Logger.Root.Warning("Saving HashInfo of '{0}' failed with {1}:{2}", filename, error.GetType().Name, error.Message);
-                    }
+                    lastWriteTime = new DateTime(r.ReadInt64());
+                    length = r.ReadInt64();
+                    hash = r.ReadBytes(20);
                 }
+
+            }
+            catch (Exception error)
+            {
+                Logger.Root.WriteLine(Verbosity.Debug, "Reading cached SHA1 of {0} failed with {1}:{2}", filename, error.GetType().Name, error.Message);
+                hash = null;
+                lastWriteTime = DateTime.MinValue;
+                length = long.MinValue;
+            }
+        }
+
+        void SaveHashInfo()
+        {
+            try
+            {
+                // remove RO attribute
+                var ro = (this.SourceFileInfo.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly;
+                if (ro)
+                    File.SetAttributes(this.SourceFileInfo.FullName, SourceFileInfo.Attributes & (~FileAttributes.ReadOnly));
+                using (var w = new BinaryWriter(new FileStream(Win32.CreateFile(this.SourceFileInfo.FullName + ":" + STREAM,
+                    FileAccess.Write, FileShare.Write, IntPtr.Zero,
+                    FileMode.Create, 0, IntPtr.Zero), FileAccess.Write)))
+                {
+                    w.Write(this.LastWriteTimeUtc.Ticks);
+                    w.Write(this.Length);
+                    w.Write(this.Hash);
+                }
+                // fix last write time, since the ADS write changes the value
+                File.SetLastWriteTimeUtc(this.SourceFileInfo.FullName, this.LastWriteTimeUtc);
+                // restore RO attribute
+                if (ro)
+                    File.SetAttributes(this.SourceFileInfo.FullName, this.SourceFileInfo.Attributes);
+            }
+            catch (Exception error)
+            {
+                Logger.Root.Warning("Saving HashInfo of '{0}' failed with {1}:{2}", this.SourceFileInfo.FullName, error.GetType().Name, error.Message);
             }
         }
 
@@ -104,17 +120,26 @@ namespace de.intronik.hashlinkcopy
             return b.ToString();
         }
 
+        /// <summary>
+        /// Returns an interned lower hase path to the hash file
+        /// suiteabel for lock
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <returns></returns>
         public string GetHashPath(string basePath)
         {
-            var s = new StringBuilder(String.Concat(this.Hash.Select(b => b.ToString("x2")).ToArray()));
-            // 0123456789012345678901234567890123456789
-            // 0         1         2         3
-            // a78733087ab883cf8923ca893123affbcd770012
-            s.Insert(40 - (36), '\\');
-            s.Insert(40 - (38), '\\');
-            // we should a obtain a value hashgrouping of
-            // a7\87\33087ab883cf8923ca893123affbcd770012
-            return Path.Combine(basePath, s.ToString());
+            var s = new StringBuilder(basePath, basePath.Length + 40 + 2);
+            for (var i = 0; i < 20; i++)
+            {
+                var b = this.Hash[i];
+                var nibble = b >> 4;
+                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
+                nibble = b & 0xF;
+                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
+                if (i < 2)
+                    s.Append('\\');
+            }
+            return String.Intern(s.ToString());
         }
     }
 }

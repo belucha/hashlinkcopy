@@ -20,7 +20,7 @@ namespace de.intronik.hashlinkcopy
             if (count > 1)
                 Monitor.Root.MoveFile(file.FullName, Path.Combine(this.Folder, r), 0);    // hash file and used, but with invalid format, move to new format
             else
-                Monitor.Root.DeleteFile(file.FullName);  // not in use => delete
+                Monitor.Root.DeleteFile(file);  // not in use => delete
         }
         public override void Run()
         {

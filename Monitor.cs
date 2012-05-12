@@ -7,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using System.Windows.Forms;
+using System.Security.Cryptography;
 
 namespace de.intronik.hashlinkcopy
 {
@@ -39,7 +40,7 @@ namespace de.intronik.hashlinkcopy
         string lastCopy = "";
         string lastError = "";
 
-        public static Monitor Root = new Monitor();
+        public static Monitor Root = new Monitor();       
 
         public bool DryRun
         {
@@ -158,12 +159,11 @@ namespace de.intronik.hashlinkcopy
             this.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
-        public void DeleteFile(string path)
+        public void DeleteFile(FileInfo info)
         {
             this.deletedFiles++;
-            this.lastFile = path;
-            Logger.Root.WriteLine(Verbosity.Debug, "Deleting file '{0}'", path);
-            this.DeleteFileSystemInfo(new FileInfo(path));
+            Logger.Root.WriteLine(Verbosity.Debug, "Deleting file '{0}'", this.lastFile = info.FullName);
+            this.DeleteFileSystemInfo(info);
         }
 
         public void CreateDirectory(string path)
@@ -180,11 +180,14 @@ namespace de.intronik.hashlinkcopy
             this.movedBytes += size;
             Logger.Root.WriteLine(Verbosity.Verbose, "Moving file '{0}' to '{1}'", source, dest);
         }
-        public void HashFile(string source, long size)
+
+        public byte[] HashFile(HashAlgorithm hashProvider, string source, long size)
         {
             this.hashedFiles++;
             this.hashedBytes += size;
             Logger.Root.WriteLine(Verbosity.Debug, "SHA1 of '{0}' ({1}byte)", source, size);
+            using (var inputStream = File.OpenRead(source))
+                return hashProvider.ComputeHash(inputStream);
         }
         public void HashCollision(string path1, string path2)
         {

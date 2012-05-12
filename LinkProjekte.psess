@@ -2,7 +2,7 @@
 <VSPerformanceSession Version="1.00">
   <Options>
     <Solution>d:\Projekte\HashLinkCopy\HashLinkCopy.sln</Solution>
-    <CollectionMethod>Sampling</CollectionMethod>
+    <CollectionMethod>Instrumentation</CollectionMethod>
     <AllocationMethod>None</AllocationMethod>
     <LaunchRuntimeControl>true</LaunchRuntimeControl>
     <AddReport>true</AddReport>
@@ -77,11 +77,6 @@
       <ProjName>HashLinkCopy</ProjName>
     </ProjBinary>
   </Binaries>
-  <Reports>
-    <Report>
-      <Path>d:\Projekte\HashLinkCopy\HashLinkCopy120512(3).vsp</Path>
-    </Report>
-  </Reports>
   <Launches>
     <ProjBinary>
       <Path>:PB:{413E129B-AAC7-4591-A873-5CAB7E453061}|HashLinkCopy.csproj</Path>
