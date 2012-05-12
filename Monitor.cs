@@ -41,6 +41,16 @@ namespace de.intronik.hashlinkcopy
 
         public static Monitor Root = new Monitor();
 
+
+        public void AdjustFileSettings(string path, FileData settings)
+        {
+            // TODO: combine to single call to Win32.SetFileInformationByHandle 
+            File.SetAttributes(path, settings.Attributes);
+            File.SetCreationTimeUtc(path, settings.CreationTimeUtc);
+            File.SetLastWriteTimeUtc(path, settings.LastWriteTimeUtc);
+            File.SetLastAccessTimeUtc(path, settings.LastAccessTimeUtc);
+        }
+
         public bool DryRun
         {
             get { return this.dryRun; }
@@ -120,19 +130,15 @@ namespace de.intronik.hashlinkcopy
             this.lastCopy = source;
             Logger.Root.WriteLine(Verbosity.Verbose, "Copy file '{0}' to '{1}'", source, dest);
         }
-        public bool LinkFile(string source, string dest, long size)
+        public void LinkFile(string source, string dest, long size)
         {
             var s = DateTime.Now;
-            if (this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero))
-            {
-                this.linkedFiles+=DateTime.Now.Subtract(s).Ticks;
-                this.linkedBytes += size;
-                this.lastLink = source;
-                Logger.Root.WriteLine(Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
-                return true;
-            }
-            else
-                return false;
+            if (!(this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero)))
+                throw new IOException(String.Format("Failed to create hardlink {0}=>{1}!", source, dest), System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+            this.linkedFiles += DateTime.Now.Subtract(s).Ticks;
+            this.linkedBytes += size;
+            this.lastLink = source;
+            Logger.Root.WriteLine(Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
         }
 
         private void DeleteFileSystemInfo(FileSystemInfo fsi)
@@ -155,12 +161,14 @@ namespace de.intronik.hashlinkcopy
             this.DeleteFileSystemInfo(new DirectoryInfo(path));
         }
 
-        public void DeleteFile(string path)
+        public void DeleteFile(FileData file)
         {
             this.deletedFiles++;
-            this.lastFile = path;
-            Logger.Root.WriteLine(Verbosity.Debug, "Deleting file '{0}'", path);
-            this.DeleteFileSystemInfo(new FileInfo(path));
+            this.lastFile = file.FullName;
+            Logger.Root.WriteLine(Verbosity.Debug, "Deleting file '{0}'", file.FullName);
+            if (file.IsReadOnly)
+                File.SetAttributes(file.FullName, FileAttributes.Normal);
+            File.Delete(file.FullName);
         }
 
         public void CreateDirectory(string path)

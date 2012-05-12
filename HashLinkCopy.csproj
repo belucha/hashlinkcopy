@@ -53,10 +53,10 @@
     <Compile Include="CommandReduce.cs" />
     <Compile Include="CommandTreeWalker.cs" />
     <Compile Include="ExcludeList.cs" />
+    <Compile Include="FileData.cs" />
     <Compile Include="FileEnumerator.cs" />
     <Compile Include="HashInfo.cs" />
     <Compile Include="CommandShrink.cs" />
-    <Compile Include="CommandHash.cs" />
     <Compile Include="Logger.cs" />
     <Compile Include="Monitor.cs" />
     <Compile Include="OptionAttribute.cs" />

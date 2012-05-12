@@ -23,7 +23,7 @@ namespace de.intronik.hashlinkcopy
         public HashInfo(string filename)
         {
             // check if info is still valid
-            var i = new System.IO.FileInfo(filename);
+            var i = new FileData(filename);
             if (i.Length > HashInfo.CacheLimit)
                 try
                 {
@@ -104,6 +104,13 @@ namespace de.intronik.hashlinkcopy
             return b.ToString();
         }
 
+
+        /// <summary>
+        /// returns an interned lower case letter has string
+        /// this string can be used for thread locking!
+        /// </summary>
+        /// <param name="basePath"></param>
+        /// <returns></returns>
         public string GetHashPath(string basePath)
         {
             var s = new StringBuilder(String.Concat(this.Hash.Select(b => b.ToString("x2")).ToArray()));
@@ -114,7 +121,7 @@ namespace de.intronik.hashlinkcopy
             s.Insert(40 - (38), '\\');
             // we should a obtain a value hashgrouping of
             // a7\87\33087ab883cf8923ca893123affbcd770012
-            return Path.Combine(basePath, s.ToString());
+            return String.Intern(Path.GetFullPath(Path.Combine(basePath, s.ToString())).ToLower());
         }
     }
 }

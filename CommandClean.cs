@@ -12,15 +12,15 @@ namespace de.intronik.hashlinkcopy
     {
         protected override void ProcessFile(FileData file, int level)
         {
-            var s = this.RebasePath(file.Path, "");
+            var s = this.RebasePath(file.FullName, "");
             var r = HashInfo.CheckAndCorrectHashPath(s);
             if (r == null) return;  // not a hashfile
-            var count = Win32.GetFileLinkCount(file.Path);
+            var count = Win32.GetFileData(file.FullName).NumberOfLinks;
             if (r == "" && count > 1) return;  // valid hash file and count is > 1
             if (count > 1)
-                Monitor.Root.MoveFile(file.Path, Path.Combine(this.Folder, r), 0);    // hash file and used, but with invalid format, move to new format
+                Monitor.Root.MoveFile(file.FullName, Path.Combine(this.Folder, r), 0);    // hash file and used, but with invalid format, move to new format
             else
-                Monitor.Root.DeleteFile(file.Path);  // not in use => delete
+                Monitor.Root.DeleteFile(file);  // not in use => delete
         }
         public override void Run()
         {
@@ -29,8 +29,8 @@ namespace de.intronik.hashlinkcopy
         protected override void LeaveDirectory(FileData dir, int level)
         {
             base.LeaveDirectory(dir, level);
-            if (Directory.GetFileSystemEntries(dir.Path).Length == 0)
-                Monitor.Root.DeleteDirectory(dir.Path);
+            if (Directory.GetFileSystemEntries(dir.FullName).Length == 0)
+                Monitor.Root.DeleteDirectory(dir.FullName);
         }
     }
 }

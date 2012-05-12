@@ -1,4 +1,7 @@
 ﻿HashLinkCopy release notes:
+v1.9.5 2012-05-12 13:00
+	- reusing file info information as long as possible and thus avoiding unneccessary file system calls
+
 v1.9.2 2012-05-11 17:00
 	- runs with system file enumerator
 

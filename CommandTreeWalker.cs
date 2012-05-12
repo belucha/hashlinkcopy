@@ -114,7 +114,7 @@ examples:
 
         protected void Process(FileData dirInfo, int level)
         {
-            var path = dirInfo.Path;
+            var path = dirInfo.FullName;
             try
             {
                 var dir = RebasePath(path, null);
@@ -141,7 +141,7 @@ examples:
                             this.Process(entry, level + 1);
                         else
                         {
-                            var filename = entry.Path;
+                            var filename = entry.FullName;
 
                             try
                             {
@@ -174,7 +174,7 @@ examples:
 
         public override void Run()
         {
-            Process(new FileData(this.Folder), 0);
+            Process(new FileData(this.Folder, true, true), 0);
         }
 
     }

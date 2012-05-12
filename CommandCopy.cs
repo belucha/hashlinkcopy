@@ -1,4 +1,5 @@
-﻿using System;
+﻿// #define MULTITHREAD
+using System;
 using System.Threading;
 using System.IO;
 using System.ComponentModel;
@@ -16,8 +17,10 @@ namespace de.intronik.hashlinkcopy
         public string Target { get; private set; }
         public string Pattern { get; private set; }
         public int SkipLevel { get; private set; }
+#if MULTITHREAD
         const int maxBackgroundJobs = 50;
         Semaphore backgroundJobs;
+#endif
 
         public override void Init(string[] parameters)
         {
@@ -42,80 +45,72 @@ namespace de.intronik.hashlinkcopy
         protected override bool CancelEnterDirectory(FileData dir, int level)
         {
             // get target folder
-            var tf = this.RebasePath(dir.Path, this.Target);
+            var tf = this.RebasePath(dir.FullName, this.Target);
             // check if existing folder should be skipped
             var exists = Directory.Exists(tf);
             if (exists && level >= this.SkipLevel) return true;
             // check if target folder must be created
             if (!exists)
-            {
                 // create it and duplicate creation&write time and attributes
                 Monitor.Root.CreateDirectory(tf);
-#if CD
-                Directory.SetCreationTimeUtc(tf, dir.CreationTimeUtc);
-                Directory.SetLastWriteTimeUtc(tf, dir.LastWriteTimeUtc);
-                File.SetAttributes(tf, dir.Attributes);
-#endif
-            }
             return false;
         }
 
         void DoProcessFile(FileData info, int level)
         {
-            var path = info.Path;
-            // build target file name
-            var tf = this.RebasePath(path, this.Target);
-            // skip existing target files
-            if (File.Exists(tf))
-                return;
+            var tf = this.RebasePath(info.FullName, this.Target);
+            var tinfo = new FileData(tf);
+            if (tinfo.Exists)
+            {
+                // skip existing target files with the same length
+                if (tinfo.Length == info.Length) return;
+                // length is not the same, delete target file
+                Monitor.Root.DeleteFile(tinfo);
+            }
             // we have no previous directory or the file changed, or linking failed, use hash algorithm
-            var hi = new HashInfo(path);
-            var hf = String.Intern(Path.GetFullPath(hi.GetHashPath(this.HashDir)));
-            // lock the target hash path
-            lock (hf)
+            var hi = new HashInfo(info.FullName);
+            var hf = hi.GetHashPath(this.HashDir);
+            lock (hf)   // lock the target hash path, we can do a lock on a string, since the string is interned!
             {
                 // check if we need to copy the file
-                if (!File.Exists(hf))
+                var hashFile = new FileData(hf);
+                // check for link count overrun
+                switch (hashFile.NumberOfLinks)
                 {
-                    Monitor.Root.CreateDirectory(Path.GetDirectoryName(hf));
-                    Monitor.Root.CopyFile(path, hf, info.Size);
-#if CD
-                    File.SetAttributes(hf, FileAttributes.Normal);
-#endif
-                }
-#if CD
-                var hInfo = new FileInfo(hf);
-                if (hInfo.Length != info.Size)
-                {
-                    Monitor.Root.HashCollision(hf, path);
-                    Monitor.Root.DeleteFile(hf);
-                    Monitor.Root.CopyFile(path, hf, info.Size);
-                    return;
-                }
-#endif
-                // create link
-                if (!Monitor.Root.LinkFile(hf, tf, info.Size))
-                    Monitor.Root.MoveFile(hf, tf, info.Size); // 10bit link count overrun => move file
-                // adjust file attributes and the last write time
-                try
-                {
-                    if (!Monitor.Root.DryRun)
-                    {
-#if CD
-                        // make sure the backed up files have identical attributes and write times as the original
-                        File.SetAttributes(path, info.Attributes);
-                        File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
-                        // remove the archive attribute of the original file
-                        File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
-#endif
-                    }
-                }
-                catch
-                {
+                    case 0:
+                        // hash file does not exist yet -> copy file and then link it
+                        Monitor.Root.CreateDirectory(Path.GetDirectoryName(hf));
+                        Monitor.Root.CopyFile(info.FullName, hf, info.Length);
+                        File.SetAttributes(hf, FileAttributes.Normal);
+                        Monitor.Root.LinkFile(hf, tf, info.Length);
+                        Monitor.Root.AdjustFileSettings(tf, info);
+                        break;
+                    case 1023:
+                        // 10bit link count overrun => just use the hashfile as actual file
+                        // the hash file will copied the next time it is needed
+                        Monitor.Root.MoveFile(hf, tf, info.Length);
+                        Monitor.Root.AdjustFileSettings(tf, info);
+                        break;
+                    default:
+                        // hash file exitst, check for no collssion
+                        if (hashFile.Length == info.Length)
+                        {
+                            // we do just do an link operation
+                            Monitor.Root.LinkFile(hf, tf, info.Length);
+                            Monitor.Root.AdjustFileSettings(tf, info);
+                        }
+                        else
+                        {
+                            // hash collission, copy target file directly
+                            Monitor.Root.HashCollision(hf, info.FullName);
+                            Monitor.Root.CopyFile(info.FullName, tf, info.Length);
+                        }
+                        break;
                 }
             }
         }
 
+#if MULTITHREAD
         void BackgroundWorkerProcessFile(object target)
         {
             var kvp = (KeyValuePair<FileData, int>)target;
@@ -125,28 +120,31 @@ namespace de.intronik.hashlinkcopy
             }
             catch (Exception error)
             {
-                Monitor.Root.Error(kvp.Key.Path, error);
+                Monitor.Root.Error(kvp.Key.FullName, error);
             }
             // job is completed, decrement number of uncompleted job
             backgroundJobs.Release();
         }
+#endif
 
         protected override void ProcessFile(FileData file, int level)
         {
+#if !MULTITHREAD
+            this.DoProcessFile(file, level);
+#else           
             // do not start an endless amount of waiting threads
             this.backgroundJobs.WaitOne();
             // que job and increment number of uncompleted jobs
             ThreadPool.QueueUserWorkItem(this.BackgroundWorkerProcessFile, new KeyValuePair<FileData, int>(file, level));
+#endif
         }
 
         protected override void LeaveDirectory(FileData dir, int level)
         {
             base.LeaveDirectory(dir, level);
             // at this point we can set the last write time of the copied directory
-#if CD
             if (!Monitor.Root.DryRun)
-                Directory.SetLastWriteTimeUtc(this.RebasePath(dir.Path, this.Target), dir.LastWriteTimeUtc);
-#endif
+                Directory.SetLastWriteTimeUtc(this.RebasePath(dir.FullName, this.Target), dir.LastWriteTimeUtc);
         }
 
         public override void Run()
@@ -172,9 +170,12 @@ namespace de.intronik.hashlinkcopy
             Logger.Root.PrintInfo("Source folder", this.Folder);
             Logger.Root.PrintInfo("Target folder", this.Target);
             Logger.Root.PrintInfo("Hash folder", this.HashDir);
+#if MULTITHREAD
             // prepare background jobs
             this.backgroundJobs = new Semaphore(maxBackgroundJobs, maxBackgroundJobs);
+#endif
             base.Run();
+#if MULTITHREAD
             Console.Write("Waiting for background jobs to complete...");
             for (var i = 0; i < maxBackgroundJobs; i++)
             {
@@ -183,6 +184,7 @@ namespace de.intronik.hashlinkcopy
             }
             Console.WriteLine("done.");
             this.backgroundJobs.Close();
+#endif
         }
     }
 }
