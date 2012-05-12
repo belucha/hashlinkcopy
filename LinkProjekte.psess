@@ -1,0 +1,102 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<VSPerformanceSession Version="1.00">
+  <Options>
+    <Solution>d:\Projekte\HashLinkCopy\HashLinkCopy.sln</Solution>
+    <CollectionMethod>Sampling</CollectionMethod>
+    <AllocationMethod>None</AllocationMethod>
+    <LaunchRuntimeControl>true</LaunchRuntimeControl>
+    <AddReport>true</AddReport>
+    <ResourceBasedAnalysisSelected>true</ResourceBasedAnalysisSelected>
+    <ThreadBasedAnalysisSelected>false</ThreadBasedAnalysisSelected>
+    <UniqueReport>Timestamp</UniqueReport>
+    <SamplingMethod>Cycles</SamplingMethod>
+    <CycleCount>10000000</CycleCount>
+    <PageFaultCount>10</PageFaultCount>
+    <SysCallCount>10</SysCallCount>
+    <SamplingCounter Name="" ReloadValue="00000000000f4240" DisplayName="" />
+    <RelocateBinaries>false</RelocateBinaries>
+    <CollectOnHpcCluster>false</CollectOnHpcCluster>
+    <HPCSettings>
+      <NumberOfProcesses>0</NumberOfProcesses>
+      <TargetSelection>UnknownDisabled</TargetSelection>
+      <ProfileOnRank>0</ProfileOnRank>
+      <AdvancedProperties>
+        <Project>HashLinkCopy</Project>
+        <CleanUp>true</CleanUp>
+        <MpiexecCommand>mpiexec.exe</MpiexecCommand>
+        <DeployCRT>true</DeployCRT>
+      </AdvancedProperties>
+    </HPCSettings>
+    <HardwareCounters EnableHWCounters="false" />
+    <EtwSettings />
+    <PdhSettings>
+      <PdhCountersEnabled>false</PdhCountersEnabled>
+      <PdhCountersRate>500</PdhCountersRate>
+      <PdhCounters>
+        <PdhCounter>\Physikalischer Datenträger(_Total)\Durchschnittl. Warteschlangenlänge des Datenträgers</PdhCounter>
+        <PdhCounter>\Prozessor(_Total)\Prozessorzeit (%)</PdhCounter>
+        <PdhCounter>\Speicher\Seiten/s</PdhCounter>
+      </PdhCounters>
+    </PdhSettings>
+  </Options>
+  <ExcludeSmallFuncs>true</ExcludeSmallFuncs>
+  <JScriptProfilingEnabled>false</JScriptProfilingEnabled>
+  <PreinstrumentEvent>
+    <InstrEventExclude>false</InstrEventExclude>
+  </PreinstrumentEvent>
+  <PostinstrumentEvent>
+    <InstrEventExclude>false</InstrEventExclude>
+  </PostinstrumentEvent>
+  <Binaries>
+    <ProjBinary>
+      <Path>d:\Projekte\HashLinkCopy\obj\x86\Debug\HashLinkCopy.exe</Path>
+      <ArgumentTimestamp>01/01/0001 00:00:00</ArgumentTimestamp>
+      <Instrument>true</Instrument>
+      <Sample>true</Sample>
+      <ExternalWebsite>false</ExternalWebsite>
+      <InteractionProfilingEnabled>false</InteractionProfilingEnabled>
+      <IsLocalJavascript>false</IsLocalJavascript>
+      <LaunchProject>false</LaunchProject>
+      <OverrideProjectSettings>true</OverrideProjectSettings>
+      <LaunchMethod>Executable</LaunchMethod>
+      <ExecutablePath>d:\Projekte\HashLinkCopy\bin\Debug\HashLinkCopy.exe</ExecutablePath>
+      <StartupDirectory>d:\Projekte\HashLinkCopy\bin\Debug\</StartupDirectory>
+      <Arguments>COPY D:\Projekte D:\Temp\Backup\* --HashDir=D:\Temp\Backup\Hash</Arguments>
+      <NetAppHost>IIS</NetAppHost>
+      <NetBrowser>InternetExplorer</NetBrowser>
+      <ExcludeSmallFuncs>true</ExcludeSmallFuncs>
+      <JScriptProfilingEnabled>false</JScriptProfilingEnabled>
+      <PreinstrumentEvent>
+        <InstrEventExclude>false</InstrEventExclude>
+      </PreinstrumentEvent>
+      <PostinstrumentEvent>
+        <InstrEventExclude>false</InstrEventExclude>
+      </PostinstrumentEvent>
+      <ProjRef>{413E129B-AAC7-4591-A873-5CAB7E453061}|HashLinkCopy.csproj</ProjRef>
+      <ProjPath>d:\Projekte\HashLinkCopy\HashLinkCopy.csproj</ProjPath>
+      <ProjName>HashLinkCopy</ProjName>
+    </ProjBinary>
+  </Binaries>
+  <Reports>
+    <Report>
+      <Path>d:\Projekte\HashLinkCopy\HashLinkCopy120512(3).vsp</Path>
+    </Report>
+  </Reports>
+  <Launches>
+    <ProjBinary>
+      <Path>:PB:{413E129B-AAC7-4591-A873-5CAB7E453061}|HashLinkCopy.csproj</Path>
+    </ProjBinary>
+  </Launches>
+  <RuntimeMarks>
+    <MarkName>Markierung Eins</MarkName>
+    <MarkName>Markierung Zwei</MarkName>
+    <MarkName>Markierung Drei</MarkName>
+    <MarkName>Markierung Vier</MarkName>
+    <MarkName>Markierung Fünf</MarkName>
+    <MarkName>Markierung Sechs</MarkName>
+    <MarkName>Markierung Sieben</MarkName>
+    <MarkName>Markierung Acht</MarkName>
+    <MarkName>Markierung Neun</MarkName>
+    <MarkName>Markierung Zehn</MarkName>
+  </RuntimeMarks>
+</VSPerformanceSession>

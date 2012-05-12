@@ -59,9 +59,14 @@ namespace de.intronik.hashlinkcopy
                 Console.SetCursorPosition(0, Console.CursorTop + 1);
         }
 
+        DateTime lastPrint = DateTime.MinValue;
+
         void PrintInfo()
         {
             if (Logger.Root.Verbosity > Verbosity.None) return;
+            var printTime = DateTime.Now;
+            if (printTime.Subtract(lastPrint).TotalMilliseconds < 500) return;
+            this.lastPrint = printTime;
             Console.SetCursorPosition(0, 0);
             var kl = 20;
             var vl = Console.WindowWidth - 2 - kl;

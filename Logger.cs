@@ -50,11 +50,10 @@ namespace de.intronik.hashlinkcopy
                         break;
                 }
             }
-            var s = String.Format(String.Format("{0}: ", verbosity) + format, args);
             if (Verbosity >= verbosity)
-                Console.WriteLine(s);
+                Console.WriteLine(String.Format(String.Format("{0}: ", verbosity) + format, args));
             if (LogfileVerbosity >= verbosity)
-                WriteLogFile(s, false);
+                WriteLogFile(String.Format(String.Format("{0}: ", verbosity) + format, args), false);
         }
 
         void WriteLogFile(string s, bool forceWrite)

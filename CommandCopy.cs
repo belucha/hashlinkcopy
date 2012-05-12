@@ -147,10 +147,13 @@ namespace de.intronik.hashlinkcopy
 
         protected override void ProcessFile(FileInfo file, int level)
         {
+            DoProcessFile(file, level);
+            /*
             // do not start an endless amount of waiting threads
             this.backgroundJobs.WaitOne();
             // que job and increment number of uncompleted jobs
             ThreadPool.QueueUserWorkItem(this.BackgroundWorkerProcessFile, new KeyValuePair<FileInfo, int>(file, level));
+             */
         }
 
         protected override void LeaveDirectory(DirectoryInfo dir, int level)
