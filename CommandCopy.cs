@@ -80,64 +80,60 @@ namespace de.intronik.hashlinkcopy
         }
 
 
-        void DoProcessFile(FileInfo info, int level, HashAlgorithm hashProvider)
+        void DoProcessFile(FileInfo sourceFileInfo, int level, HashAlgorithm hashProvider)
         {
             if (Monitor.Root.DryRun) return;
-            var path = info.FullName;
+            var sourceFilename = sourceFileInfo.FullName;
             // build target file name
-            var tf = this.RebasePath(path, this.Target);
+            var targetFileName = this.RebasePath(sourceFilename, this.Target);
             // skip existing target files
-            if (File.Exists(tf)) return;
-            // check if previous version of file can be found, that we could link to, this way we avoid to calc the SHA1
-            if (false && this.PreviousBackup != null)
-            {
-                var pf = this.RebasePath(path, this.PreviousBackup);
-                if (File.Exists(pf))
+            if (File.Exists(targetFileName)) return;
+            // check if previous version of file can be found, that we could link to, this way we avoid to calc the SHA1 and a copy of attributes and
+            if (this.PreviousBackup != null)
+                try
                 {
-                    var pInfo = new FileInfo(pf);
-                    if (pInfo.Length == info.Length && pInfo.LastWriteTimeUtc == info.LastWriteTimeUtc &&
-                        (info.Attributes & FileAttributes.Archive) == 0)
-                        if (Monitor.Root.LinkFile(pf, tf, info.Length))
-                        {
-                            File.SetAttributes(path, info.Attributes & (~FileAttributes.Archive));
-                            return;
-                        }
+                    var previousBackupFilename = this.RebasePath(sourceFilename, this.PreviousBackup);
+                    var previousBackupFileInfo = new FileInfo(previousBackupFilename);
+                    if (previousBackupFileInfo.Length == sourceFileInfo.Length && previousBackupFileInfo.LastWriteTimeUtc == sourceFileInfo.LastWriteTimeUtc && previousBackupFileInfo.Attributes == sourceFileInfo.Attributes && Monitor.Root.LinkFile(previousBackupFilename, targetFileName, sourceFileInfo.Length))
+                        return; // we successfully linked to the previous file => so we are done
                 }
-            }
+                catch (FileNotFoundException)
+                {
+                    // the previous backup file was not found => just continue with normal operation
+                }
             // we have no previous directory or the file changed, or linking failed, use hash algorithm
-            var hi = new HashInfo(info, hashProvider);
-            var hf = hi.GetHashPath(this.HashDir);
+            var hash = new HashInfo(sourceFileInfo, hashProvider);
+            var hashFilename = hash.GetHashPath(this.HashDir);
             // lock the target hash path
-            lock (hf)
+            lock (hashFilename)
             {
                 // check if we need to copy the file
                 try
                 {
-                    var hInfo = new FileInfo(hf);
-                    if (hInfo.Length != info.Length)
+                    var hashFileInfo = new FileInfo(hashFilename);
+                    if (hashFileInfo.Length != sourceFileInfo.Length)
                     {
-                        Monitor.Root.HashCollision(hf, path);
-                        Monitor.Root.CopyFile(path, tf, info.Length);
-                        return;
+                        Monitor.Root.HashCollision(hashFilename, sourceFilename);
+                        Monitor.Root.CopyFile(sourceFilename, targetFileName, sourceFileInfo.Length);
                     }
                 }
                 catch (FileNotFoundException)
                 {
-                    Monitor.Root.CreateDirectory(Path.GetDirectoryName(hf));
-                    Monitor.Root.CopyFile(path, hf, info.Length);
-                    File.SetAttributes(hf, FileAttributes.Normal);
+                    Monitor.Root.CreateDirectory(Path.GetDirectoryName(hashFilename));
+                    Monitor.Root.CopyFile(sourceFilename, hashFilename, sourceFileInfo.Length);
+                    File.SetAttributes(hashFilename, FileAttributes.Normal);
                 }
                 // create link
-                if (!Monitor.Root.LinkFile(hf, tf, info.Length))
-                    Monitor.Root.MoveFile(hf, tf, info.Length); // 10bit link count overrun => move file
+                if (!Monitor.Root.LinkFile(hashFilename, targetFileName, sourceFileInfo.Length))
+                    Monitor.Root.MoveFile(hashFilename, targetFileName, sourceFileInfo.Length); // 10bit link count overrun => move file
                 // adjust file attributes and the last write time                
                 // make sure the backed up files have identical attributes and write times as the original
                 if (this.restoreAttributes)
-                    File.SetAttributes(path, info.Attributes);
+                    File.SetAttributes(targetFileName, sourceFileInfo.Attributes);
                 if (this.restoreLastWriteTime)
-                    File.SetLastWriteTimeUtc(tf, info.LastWriteTimeUtc);
+                    File.SetLastWriteTimeUtc(targetFileName, sourceFileInfo.LastWriteTimeUtc);
                 if (this.clearArchiveBit)
-                    File.SetAttributes(info.FullName, info.Attributes & (~FileAttributes.Archive));
+                    File.SetAttributes(sourceFilename, sourceFileInfo.Attributes & (~FileAttributes.Archive));
             }
         }
 

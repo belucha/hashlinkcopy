@@ -51,6 +51,7 @@
     <Compile Include="CommandBase.cs" />
     <Compile Include="CommandClean.cs" />
     <Compile Include="CommandCopy.cs" />
+    <Compile Include="CommandHash.cs" />
     <Compile Include="CommandHelp.cs" />
     <Compile Include="CommandReduce.cs" />
     <Compile Include="CommandTreeWalker.cs" />
