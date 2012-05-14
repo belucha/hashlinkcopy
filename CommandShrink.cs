@@ -33,7 +33,7 @@ namespace de.intronik.hashlinkcopy
                 Monitor.Root.DeleteFile(info);
             }
             // create link
-            if (!Monitor.Root.LinkFile(hf, info.FullName, info.Length))
+            if (Monitor.Root.LinkFile(hf, info.FullName, info.Length)!=0)
                 // 10bit link count overrun => move the hash file
                 Monitor.Root.MoveFile(hf, info.FullName, info.Length);
             // adjust file attributes and the last write time

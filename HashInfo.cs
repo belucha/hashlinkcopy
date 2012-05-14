@@ -128,7 +128,7 @@ namespace de.intronik.hashlinkcopy
         /// <returns></returns>
         public string GetHashPath(string basePath)
         {
-            var s = new StringBuilder(basePath, basePath.Length + 40 + 2);
+            var s = new StringBuilder(basePath, (basePath != null ? basePath.Length : 0) + 40 + 2);
             for (var i = 0; i < 20; i++)
             {
                 var b = this.Hash[i];

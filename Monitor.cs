@@ -40,7 +40,7 @@ namespace de.intronik.hashlinkcopy
         string lastCopy = "";
         string lastError = "";
 
-        public static Monitor Root = new Monitor();       
+        public static Monitor Root = new Monitor();
 
         public bool DryRun
         {
@@ -125,18 +125,17 @@ namespace de.intronik.hashlinkcopy
             this.lastCopy = source;
             Logger.Root.WriteLine(Verbosity.Verbose, "Copy file '{0}' to '{1}'", source, dest);
         }
-        public bool LinkFile(string source, string dest, long size)
+        public int LinkFile(string source, string dest, long size)
         {
-            if (this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero))
+            var ok = this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero);
+            var errorCode = ok ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+            if (ok)
             {
                 this.linkedFiles++;
                 this.linkedBytes += size;
                 this.lastLink = source;
                 Logger.Root.WriteLine(Verbosity.Verbose, "Link file '{0}' to '{1}'", dest, source);
-                return true;
-            }
-            else
-                return false;
+            } return errorCode;
         }
 
         private void DeleteFileSystemInfo(FileSystemInfo fsi)

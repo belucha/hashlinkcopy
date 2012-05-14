@@ -11,7 +11,6 @@ namespace de.intronik.hashlinkcopy
     [Option("Verbosity", Help = "verbosity of the messages generated", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "None")]
     [Option("DryRun", Help = "Disables any disk operations")]
     [Option("LogVerb", Help = "verbosity of the log file messages", Description = "None|Error|Warning|Message|Verbose|Debug", Default = "Message")]
-    [Option("EnablePC", Help = "enable window performance counters", Description = "false,true", Default = "false")]
     abstract class CommandBase
     {
 
