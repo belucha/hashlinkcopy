@@ -31,7 +31,7 @@ namespace de.intronik.hashlinkcopy
             public uint FileIndexLow;
         }
 
-        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern SafeFileHandle CreateFile(
             string lpFileName,
             [MarshalAs(UnmanagedType.U4)] FileAccess dwDesiredAccess,
@@ -41,10 +41,10 @@ namespace de.intronik.hashlinkcopy
             [MarshalAs(UnmanagedType.U4)] FileAttributes dwFlagsAndAttributes,
             IntPtr hTemplateFile);
 
-        [DllImport("Kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        [DllImport("Kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         public static extern bool CreateHardLink(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
 
-        [DllImport("kernel32.dll", SetLastError = true, CharSet=CharSet.Unicode)]
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         static extern bool GetFileInformationByHandle(SafeFileHandle handle, out BY_HANDLE_FILE_INFORMATION lpFileInformation);
         #endregion
 

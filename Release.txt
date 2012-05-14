@@ -1,4 +1,7 @@
 ﻿HashLinkCopy release notes:
+v2.1.1 2012-05-14 14:30
+	- CharSet.Auto for kernel32 mapping
+
 v2.1.0 2012-05-14 14:00
 	- always try CreateHardLink first and use error code to get details on error source
 
