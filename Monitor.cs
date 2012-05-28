@@ -127,7 +127,11 @@ namespace de.intronik.hashlinkcopy
         }
         public int LinkFile(string source, string dest, long size)
         {
+            var start = DateTime.Now;
             var ok = this.dryRun || Win32.CreateHardLink(dest, source, IntPtr.Zero);
+            var et = DateTime.Now.Subtract(start).TotalSeconds;
+            if (et >= 1.0d)
+                Logger.Root.WriteLine(Verbosity.Warning, "Hardlink for {0}=>{1} took {2:F1}s, links {3}", source, dest, et, Win32.GetFileLinkCount(source));
             var errorCode = ok ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
             if (ok)
             {
