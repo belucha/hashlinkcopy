@@ -17,8 +17,6 @@ namespace de.intronik.hashcopy
         public override string ToString()
         {
             var s = new StringBuilder(IsDirectory ? 43 : 42);
-            if (IsDirectory)
-                s.Append('$');
             for (var i = 0; i < 20; i++)
             {
                 var b = Hash[i];
@@ -28,6 +26,8 @@ namespace de.intronik.hashcopy
                 s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
                 if (i < 2)
                     s.Append('\\');
+                if (i == 1 && this.IsDirectory)
+                    s.Append('_');
             }
             return s.ToString();
         }
@@ -146,12 +146,12 @@ namespace de.intronik.hashcopy
                     var td = Path.Combine(this.HashDir, directoryEntry.ToString());
                     if (Directory.Exists(td)) return directoryEntry;
                     // create link structure in temp directory first
-                    var tmpDirName = td+"_";
+                    var tmpDirName = td + "_";
                     Directory.CreateDirectory(tmpDirName);
                     foreach (var subEntry in directoryEntries)
                         this.CreateSymbolicLink(subEntry, tmpDirName, subEntry.Info.Name, "..\\..\\..\\");
                     // we are done, rename directory
-                    Directory.Move(tmpDirName, td);                    
+                    Directory.Move(tmpDirName, td);
                     return directoryEntry;
                 }
                 else
@@ -182,37 +182,35 @@ namespace de.intronik.hashcopy
 
         static void Main(string[] args)
         {
-            if (args.Length < 2)
+            if (args.Length < 3)
             {
-                Console.WriteLine("Usage is {0} SOURCE DEST [HASHDIR]", "de.intronik.hashcopy.exe");
+                Console.WriteLine("Usage is {0} SOURCE DEST NAME [HASHDIR]", "de.intronik.hashcopy.exe");
                 return;
             }
-            var start = DateTime.Now;
-            var hd = Path.GetFullPath(args.Length < 3 ? Path.Combine(args[1], "Hash") : args[3]);
-            var h = new Hasher(hd);
             try
             {
-                Hasher.DEMO = args.Length >= 4 ? bool.Parse(args[3]) : false;
-                var e = h.Run(new DirectoryInfo(args[0]), 0);
-                var targetFolder = Path.Combine(args[1], String.Format("{0:yyyy-MM-dd_HH.mm}\\", DateTime.Now));
-                var name = Path.GetFileName(args[0]);
-                if (String.IsNullOrEmpty(name))
-                {
-                    name = Path.GetDirectoryName(targetFolder);
-                    targetFolder = Path.GetFullPath(Path.Combine(targetFolder, "..\\"));
-                }
-                if (Hasher.DEMO)
-                    Console.WriteLine("Create [{0}]", targetFolder);
-                else
+                Hasher.DEMO = false;
+                var start = DateTime.Now;
+                var source = new DirectoryInfo(args[0]);
+                var targetFolder = Path.GetFullPath(args[1]);
+                var hashDirectory = Path.GetFullPath(args.Length < 4 ? Path.Combine(targetFolder, "Hash") : args[3]);
+                var name = args[2].Replace("*", String.Format("{0:yyyy-MM-dd_HH.mm}", DateTime.Now));
+                Console.WriteLine("{0,-20}: {1}", "Source", source);
+                Console.WriteLine("{0,-20}: {1}", "Target Folder", targetFolder);
+                Console.WriteLine("{0,-20}: {1}", "Target Name", name);
+                Console.WriteLine("{0,-20}: {1}", "Hash Folder", hashDirectory);
+                var h = new Hasher(hashDirectory);
+                var e = h.Run(source, 0);
+                if (!Hasher.DEMO)
                     Directory.CreateDirectory(targetFolder);
                 h.CreateSymbolicLink(e, targetFolder, name, h.HashDir);
+                var et = DateTime.Now.Subtract(start);
+                Console.WriteLine("Processed {0} source files and {1} source directories, {2} new files copied, {3} new symbolic links created in {4}", h.FileCount, h.DirectoryCount, h.CopyCount, h.SymLinkCount, et);
             }
             catch (Exception e)
             {
                 Console.Error.WriteLine(e.ToString());
             }
-            var et = DateTime.Now.Subtract(start);
-            Console.WriteLine("Processed {0} source files and {1} source directories, {2} new files copied, {3} new symbolic links created in {4}", h.FileCount, h.DirectoryCount, h.CopyCount, h.SymLinkCount, et);
         }
     }
 }
