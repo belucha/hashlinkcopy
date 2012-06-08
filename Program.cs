@@ -183,7 +183,7 @@ namespace de.intronik.hashcopy
                     // HANDLE SUBDIRECTORY
                     //
                     var sourceDirectory = (DirectoryInfo)fileSystemInfo;
-                    Console.WriteLine("{1}[{0}]", fileSystemInfo.Name, "".PadLeft(level));
+                    //Console.WriteLine("{1}[{0}]", fileSystemInfo.Name, "".PadLeft(level));
                     this.DirectoryCount++;
                     Console.Title = String.Format("Processing (d{1}/f{2}/sl{3}/c{4}/m{5}/hl{6}/j{7}/st{8}) [{0}]",
                         fileSystemInfo.FullName,
