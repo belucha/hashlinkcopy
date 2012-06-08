@@ -94,6 +94,7 @@ namespace de.intronik.hashcopy
                     default:
                         var e = new System.ComponentModel.Win32Exception(error);
                         Console.Error.WriteLine("{0}: {1} ({2}) in {3}", e.GetType().Name, e.Message, error, source);
+                        Console.WriteLine("{0}: {1} ({2}) in {3}", e.GetType().Name, e.Message, error, source);
                         throw new ApplicationException(source, e);
                 }
             }
@@ -128,6 +129,7 @@ namespace de.intronik.hashcopy
                     default:
                         var e = new System.ComponentModel.Win32Exception(error);
                         Console.Error.WriteLine("{0}: {1} ({2}) in {3}", e.GetType().Name, e.Message, error, name);
+                        Console.WriteLine("{0}: {1} ({2}) in {3}", e.GetType().Name, e.Message, error, name);
                         throw new ApplicationException(name, e);
                 }
             }
@@ -247,6 +249,7 @@ namespace de.intronik.hashcopy
             {
                 this.ErrorCount++;
                 Console.Error.WriteLine("{0}{1}: {2} in {3}", "".PadLeft(level), e.GetType().Name, e.Message, fileSystemInfo.Name);
+                Console.WriteLine("{0}{1}: {2} in {3}", "".PadLeft(level), e.GetType().Name, e.Message, fileSystemInfo.Name);
                 return null;
             }
         }
@@ -274,18 +277,22 @@ namespace de.intronik.hashcopy
                 var targetFolder = Path.GetFullPath(args[1]);
                 var hashDirectory = Path.GetFullPath(args.Length < 4 ? Path.Combine(targetFolder, "Hash") : args[3]);
                 var name = args[2].Replace("*", String.Format("{0:yyyy-MM-dd_HH.mm}", DateTime.Now));
+                print("Start", start);
                 print("Source", source);
                 print("Target Folder", targetFolder);
                 print("Target Name", name);
                 print("Hash Folder", hashDirectory);
                 var h = new Hasher(hashDirectory);
+                print("Mode", h.CreateLink.Method.Name);
                 // select which algorithm to use
                 h.CreateLink = (args.Length > 4 && String.Compare(args[4], "symbolic", true) == 0) ?
                         (Hasher.LinkDelegate)h.CreateSymbolicLink :
                         (Hasher.LinkDelegate)h.CreateHardLinkOrJunction;
-
                 h.CreateLink(Path.Combine(targetFolder, name), h.Run(source, 0));
-                var et = DateTime.Now.Subtract(start);
+                var end = DateTime.Now;
+                var et = end.Subtract(start);
+                print("Start", start);
+                print("End", end);
                 print("Source", source);
                 print("Target Folder", targetFolder);
                 print("Target Name", name);
@@ -307,6 +314,7 @@ namespace de.intronik.hashcopy
             catch (Exception e)
             {
                 Console.Error.WriteLine(e.ToString());
+                Console.WriteLine(e.ToString());
             }
         }
     }
