@@ -16,18 +16,25 @@ namespace de.intronik.hashcopy
 
         public override string ToString()
         {
-            var s = new StringBuilder(IsDirectory ? 43 : 42);
+            return ToString('_');
+        }
+
+        public string ToString(char directoryPrefix)
+        {
+            var s = new StringBuilder(IsDirectory ? 44 : 43);
             for (var i = 0; i < 20; i++)
             {
                 var b = Hash[i];
                 var nibble = b >> 4;
                 s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
                 nibble = b & 0xF;
-                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
-                if (i < 2)
+                if (i == 1)
+                {
                     s.Append('\\');
-                if (i == 1 && this.IsDirectory)
-                    s.Append('_');
+                    if (this.IsDirectory)
+                        s.Append(directoryPrefix);
+                }
+                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
             }
             return s.ToString();
         }
@@ -35,24 +42,32 @@ namespace de.intronik.hashcopy
 
     class Hasher
     {
+        public delegate void LinkDelegate(string name, HashEntry entry);
         HashAlgorithm HASH_ALG;
         public string HashDir { get; private set; }
         public static bool DEMO = true;
+        public long ErrorCount { get; private set; }
         public long FileCount { get; private set; }
         public long DirectoryCount { get; private set; }
         public long CopyCount { get; private set; }
         public long SymLinkCount { get; private set; }
+        public long JunctionCount { get; private set; }
+        public long SkippedJunctionCount { get; private set; }
+        public long SkippedTreeCount { get; private set; }
+        public long HardLinkCount { get; private set; }
+        public long SkippedHardLinkCount { get; private set; }
+        public long MoveCount { get; private set; }
         public long SkippedSymLinkCount { get; private set; }
+        public LinkDelegate CreateLink { get; set; }
 
         public Hasher(string hashDir)
         {
-            this.DirectoryCount = 0;
-            this.FileCount = 0;
-            this.CopyCount = 0;
-            this.SymLinkCount = 0;
-            this.SkippedSymLinkCount = 0;
             this.HASH_ALG = SHA1.Create();
             this.HashDir = hashDir.EndsWith("\\") ? hashDir : (hashDir + "\\");
+            this.CreateLink = CreateHardLinkOrJunction;
+            // make sure all hash directories exist!
+            for (var i = 0; i < (1 << 12); i++)
+                Directory.CreateDirectory(hashDir + i.ToString("X3"));
         }
 
         public void CopyFile(string source, string dest)
@@ -67,6 +82,7 @@ namespace de.intronik.hashcopy
                 {
                     case 0:     // ERROR_SUCCESS
                         this.CopyCount++;
+                        File.SetAttributes(dest, FileAttributes.Normal);
                         return;
                     case 3:     // ERROR_PATH_NOT_FOUND
                         Directory.CreateDirectory(Path.GetDirectoryName(dest));
@@ -83,35 +99,76 @@ namespace de.intronik.hashcopy
             }
         }
 
-        public void CreateSymbolicLink(HashEntry entry, string dir, string name, string hashRoot)
+        public void CreateSymbolicLink(string name, HashEntry entry)
         {
-            var target = hashRoot + entry.ToString();
-            if (Hasher.DEMO)
-                Console.WriteLine(entry.IsDirectory ? "\t[{0}]=>[{1}]" : "\t{0}=>{1}", Path.GetFileName(name), target);
+            while (true)
+            {
+                var hc = entry.ToString();
+                var target = this.HashDir + hc;
+                // check if copy file must be done
+                if (!entry.IsDirectory && !File.Exists(target))
+                    this.CopyFile(entry.Info.FullName, target);
+                // remove target drive
+                target = (target.Length > 2 && target[1] == ':') ? target.Substring(2) : target;
+                // create link and set error variable
+                var error = Win32.CreateSymbolicLink(name, target, entry.IsDirectory ? Win32.SymbolicLinkFlags.Directory : Win32.SymbolicLinkFlags.File) ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                switch (error)
+                {
+                    case 0:     // ERROR_SUCCESS
+                        this.SymLinkCount++;
+                        return;
+                    case 80:    // ERROR_FILE_EXISTS
+                    case 183:   // ERROR_ALREADY_EXISTS
+                        this.SkippedSymLinkCount++;
+                        return;
+                    case 1314:  // ERROR_PRIVILEGE_NOT_HELD
+                        throw new System.Security.SecurityException("Not enough priveleges to create symbolic links!", new System.ComponentModel.Win32Exception(error));
+                    case 2:     // ERROR_FILE_NOT_FOUND
+                    case 3:     // ERROR_PATH_NOT_FOUND
+                    default:
+                        var e = new System.ComponentModel.Win32Exception(error);
+                        Console.Error.WriteLine("{0}: {1} ({2}) in {3}", e.GetType().Name, e.Message, error, name);
+                        throw new ApplicationException(name, e);
+                }
+            }
+        }
+
+        public void CreateHardLinkOrJunction(string name, HashEntry entry)
+        {
+            var target = HashDir + entry.ToString();
+            if (entry.IsDirectory)
+            {
+                if (Directory.Exists(name))
+                {
+                    this.SkippedJunctionCount++;
+                    return;
+                }
+                Directory.CreateDirectory(name);
+                Win32.CreateJunction(name, target, false);
+                this.JunctionCount++;
+            }
             else
                 while (true)
                 {
-                    // create link and set error variable
-                    var error = Win32.CreateSymbolicLink(Path.Combine(dir, name), target, entry.IsDirectory ? Win32.SymbolicLinkFlags.Directory : Win32.SymbolicLinkFlags.File) ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-                    switch (error)
+                    var linkError = Win32.CreateHardLink(name, target, IntPtr.Zero) ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+                    switch (linkError)
                     {
                         case 0:     // ERROR_SUCCESS
-                            this.SymLinkCount++;
+                            this.HardLinkCount++;
                             return;
-                        case 3:     // ERROR_PATH_NOT_FOUND
-                            Directory.CreateDirectory(dir);
-                            break;
-                        case 80:    // ERROR_FILE_EXISTS
                         case 183:   // ERROR_ALREADY_EXISTS
-                            this.SkippedSymLinkCount++;
+                            this.SkippedHardLinkCount++;
+                            return; // target file already existing
+                        case 1142:  // ERROR_TOO_MANY_LINKS
+                            File.Move(target, name);
+                            this.MoveCount++;
                             return;
-                        case 1314:  // ERROR_PRIVILEGE_NOT_HELD
-                            throw new System.Security.SecurityException("Not enough priveleges to create symbolic links!", new System.ComponentModel.Win32Exception(error));
                         case 2:     // ERROR_FILE_NOT_FOUND
+                            CopyFile(entry.Info.FullName, target);
+                            break;
+                        case 3:     // ERROR_PATH_NOT_FOUND                        
                         default:
-                            var e = new System.ComponentModel.Win32Exception(error);
-                            Console.Error.WriteLine("{0}: {1} ({2}) in {3}", e.GetType().Name, e.Message, error, name);
-                            throw new ApplicationException(name, e);
+                            throw new System.ComponentModel.Win32Exception(linkError, String.Format("CreateHardLink({0},{1}) returned 0x{2:X8}h", name, target, linkError));
                     }
                 }
         }
@@ -128,28 +185,46 @@ namespace de.intronik.hashcopy
                     var sourceDirectory = (DirectoryInfo)fileSystemInfo;
                     Console.WriteLine("{1}[{0}]", fileSystemInfo.Name, "".PadLeft(level));
                     this.DirectoryCount++;
-                    Console.Title = String.Format("Processing (d{1}/f{2}/s{3}/c{4}) [{0}]", fileSystemInfo.FullName, this.DirectoryCount, this.FileCount, this.SymLinkCount, this.CopyCount);
+                    Console.Title = String.Format("Processing (d{1}/f{2}/sl{3}/c{4}/m{5}/hl{6}/j{7}/st{8}) [{0}]",
+                        fileSystemInfo.FullName,
+                        this.DirectoryCount,
+                        this.FileCount,
+                        this.SymLinkCount,
+                        this.CopyCount,
+                        this.MoveCount,
+                        this.HardLinkCount,
+                        this.JunctionCount,
+                        this.SkippedTreeCount);
                     var m = new MemoryStream();
                     var w = new BinaryWriter(m);
-                    var directoryEntries = sourceDirectory.EnumerateFileSystemInfos().Select(e => Run(e, level + 1)).Where(e => e != null).ToArray();
-                    foreach (var subEntry in directoryEntries)
+                    var directoryEntries = new List<HashEntry>(500);
+                    foreach (var entry in sourceDirectory.EnumerateFileSystemInfos())
                     {
-                        w.Write(subEntry.Info.Attributes.HasFlag(FileAttributes.Directory));
-                        w.Write(subEntry.Hash);
-                        w.Write(subEntry.Info.Name);
+                        var subEntry = this.Run(entry, level + 1);
+                        if (subEntry != null)
+                        {
+                            w.Write(subEntry.Info.Attributes.HasFlag(FileAttributes.Directory));
+                            w.Write(subEntry.Hash);
+                            w.Write(subEntry.Info.Name);
+                            directoryEntries.Add(subEntry);
+                        }
                     }
                     var directoryEntry = new HashEntry()
                     {
                         Hash = HASH_ALG.ComputeHash(m.ToArray()),
                         Info = fileSystemInfo,
                     };
-                    var td = Path.Combine(this.HashDir, directoryEntry.ToString());
-                    if (Directory.Exists(td)) return directoryEntry;
-                    // create link structure in temp directory first
-                    var tmpDirName = td + "_";
+                    var td = this.HashDir + directoryEntry.ToString();
+                    if (Directory.Exists(td))
+                    {
+                        this.SkippedTreeCount++;
+                        return directoryEntry;
+                    }
+                    // create link structure in temp directory first                    
+                    var tmpDirName = this.HashDir + directoryEntry.ToString('$') + "\\";
                     Directory.CreateDirectory(tmpDirName);
                     foreach (var subEntry in directoryEntries)
-                        this.CreateSymbolicLink(subEntry, tmpDirName, subEntry.Info.Name, "..\\..\\..\\");
+                        this.CreateLink(tmpDirName + subEntry.Info.Name, subEntry);
                     // we are done, rename directory
                     Directory.Move(tmpDirName, td);
                     return directoryEntry;
@@ -165,12 +240,12 @@ namespace de.intronik.hashcopy
                         Hash = new HashInfo((FileInfo)fileSystemInfo, HASH_ALG).Hash,
                         Info = fileSystemInfo,
                     };
-                    CopyFile(fileSystemInfo.FullName, Path.Combine(this.HashDir, fileEntry.ToString()));
                     return fileEntry;
                 }
             }
             catch (Exception e)
             {
+                this.ErrorCount++;
                 Console.Error.WriteLine("{0}{1}: {2} in {3}", "".PadLeft(level), e.GetType().Name, e.Message, fileSystemInfo.Name);
                 return null;
             }
@@ -180,11 +255,15 @@ namespace de.intronik.hashcopy
     class Program
     {
 
+        static void print(string name, object value)
+        {
+            Console.WriteLine("{0,-20}: {1}", name, value);
+        }
         static void Main(string[] args)
         {
             if (args.Length < 3)
             {
-                Console.WriteLine("Usage is {0} SOURCE DEST NAME [HASHDIR]", "de.intronik.hashcopy.exe");
+                Console.WriteLine("Usage is {0} SOURCE DEST NAME [HASHDIR] [symbolic]", "de.intronik.hashcopy.exe");
                 return;
             }
             try
@@ -195,17 +274,35 @@ namespace de.intronik.hashcopy
                 var targetFolder = Path.GetFullPath(args[1]);
                 var hashDirectory = Path.GetFullPath(args.Length < 4 ? Path.Combine(targetFolder, "Hash") : args[3]);
                 var name = args[2].Replace("*", String.Format("{0:yyyy-MM-dd_HH.mm}", DateTime.Now));
-                Console.WriteLine("{0,-20}: {1}", "Source", source);
-                Console.WriteLine("{0,-20}: {1}", "Target Folder", targetFolder);
-                Console.WriteLine("{0,-20}: {1}", "Target Name", name);
-                Console.WriteLine("{0,-20}: {1}", "Hash Folder", hashDirectory);
+                print("Source", source);
+                print("Target Folder", targetFolder);
+                print("Target Name", name);
+                print("Hash Folder", hashDirectory);
                 var h = new Hasher(hashDirectory);
-                var e = h.Run(source, 0);
-                if (!Hasher.DEMO)
-                    Directory.CreateDirectory(targetFolder);
-                h.CreateSymbolicLink(e, targetFolder, name, h.HashDir);
+                // select which algorithm to use
+                h.CreateLink = (args.Length > 4 && String.Compare(args[4], "symbolic", true) == 0) ?
+                        (Hasher.LinkDelegate)h.CreateSymbolicLink :
+                        (Hasher.LinkDelegate)h.CreateHardLinkOrJunction;
+
+                h.CreateLink(Path.Combine(targetFolder, name), h.Run(source, 0));
                 var et = DateTime.Now.Subtract(start);
-                Console.WriteLine("Processed {0} source files and {1} source directories, {2} new files copied, {3} new symbolic links created in {4}", h.FileCount, h.DirectoryCount, h.CopyCount, h.SymLinkCount, et);
+                print("Source", source);
+                print("Target Folder", targetFolder);
+                print("Target Name", name);
+                print("Hash Folder", hashDirectory);
+                print("files", h.FileCount);
+                print("directories", h.DirectoryCount);
+                print("copied files", h.CopyCount);
+                print("symbolic links", h.SymLinkCount);
+                print("s. symbolic links", h.SkippedSymLinkCount);
+                print("hard link", h.HardLinkCount);
+                print("skipped hard links", h.SkippedHardLinkCount);
+                print("moved files", h.MoveCount);
+                print("junctions", h.JunctionCount);
+                print("skipped junctions", h.SkippedJunctionCount);
+                print("skipped tree count", h.SkippedTreeCount);
+                print("error count", h.ErrorCount);
+                print("duration", et);
             }
             catch (Exception e)
             {

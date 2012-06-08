@@ -100,45 +100,5 @@ namespace de.intronik.hashcopy
             {
             }
         }
-
-        /// <summary>
-        /// Returns the has
-        /// </summary>
-        /// <param name="path"></param>
-        /// <returns></returns>
-        public static string CheckAndCorrectHashPath(string path)
-        {
-            // entferne alle pfadzeichen und prüfe
-            var cleaned = path.Where(c => c != '\\').ToArray();
-            if (cleaned.Length != 40 || cleaned.Any(c => (!Char.IsDigit(c)) && (Char.ToLower(c) > 'f' || Char.ToLower(c) < 'a'))) return null;
-            // it is a valid has path, check if the folder separators are at the correct position
-            if (path[2] == '\\' && path[5] == '\\' && path.Length == 42) return "";
-            var b = new StringBuilder(new String(cleaned), 42);
-            b.Insert(2, '\\');
-            b.Insert(5, '\\');
-            return b.ToString();
-        }
-
-        /// <summary>
-        /// Returns an interned lower hase path to the hash file
-        /// suiteabel for lock
-        /// </summary>
-        /// <param name="basePath"></param>
-        /// <returns></returns>
-        public string GetHashPath(string basePath)
-        {
-            var s = new StringBuilder(basePath, (basePath != null ? basePath.Length : 0) + 40 + 2);
-            for (var i = 0; i < 20; i++)
-            {
-                var b = this.Hash[i];
-                var nibble = b >> 4;
-                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
-                nibble = b & 0xF;
-                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
-                if (i < 2)
-                    s.Append('\\');
-            }
-            return String.Intern(s.ToString());
-        }
     }
 }
