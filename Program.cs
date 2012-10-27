@@ -7,72 +7,55 @@ using System.Text;
 
 namespace de.intronik.hashcopy
 {
-    class HashEntry
+    enum LinkGeneration
     {
-        public byte[] Hash;
-        public FileSystemInfo Info;
-
-        public bool IsDirectory { get { return (this.Info.Attributes & FileAttributes.Directory) == FileAttributes.Directory; } }
-
-        public override string ToString()
-        {
-            return ToString('_');
-        }
-
-        public string ToString(char directoryPrefix)
-        {
-            var s = new StringBuilder(IsDirectory ? 44 : 43);
-            for (var i = 0; i < 20; i++)
-            {
-                var b = Hash[i];
-                var nibble = b >> 4;
-                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
-                nibble = b & 0xF;
-                if (i == 1)
-                {
-                    s.Append('\\');
-                    if (this.IsDirectory)
-                        s.Append(directoryPrefix);
-                }
-                s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
-            }
-            return s.ToString();
-        }
+        Symbolic,
+        Junction,
     }
 
-    class Hasher
+    class HashLinkCopy
     {
-        public delegate void LinkDelegate(string name, HashEntry entry);
-        HashAlgorithm HASH_ALG;
-        public string HashDir { get; private set; }
-        public static bool DEMO = true;
-        public long ErrorCount { get; private set; }
-        public long FileCount { get; private set; }
-        public long DirectoryCount { get; private set; }
-        public long CopyCount { get; private set; }
-        public long SymLinkCount { get; private set; }
-        public long JunctionCount { get; private set; }
-        public long SkippedJunctionCount { get; private set; }
-        public long SkippedTreeCount { get; private set; }
-        public long HardLinkCount { get; private set; }
-        public long SkippedHardLinkCount { get; private set; }
-        public long MoveCount { get; private set; }
-        public long SkippedSymLinkCount { get; private set; }
-        public LinkDelegate CreateLink { get; set; }
-
-        public Hasher(string hashDir)
+        #region private helper types
+        class HashEntry
         {
-            this.HASH_ALG = SHA1.Create();
-            this.HashDir = hashDir.EndsWith("\\") ? hashDir : (hashDir + "\\");
-            this.CreateLink = CreateHardLinkOrJunction;
-            // make sure all hash directories exist!
-            for (var i = 0; i < (1 << 12); i++)
-                Directory.CreateDirectory(hashDir + i.ToString("X3"));
+            public byte[] Hash;
+            public FileSystemInfo Info;
+
+            public bool IsDirectory { get { return (this.Info.Attributes & FileAttributes.Directory) == FileAttributes.Directory; } }
+
+            public override string ToString()
+            {
+                return ToString(false);
+            }
+
+            public string ToString(bool tempFile)
+            {
+                var s = new StringBuilder(45);
+                s.Append(tempFile ? "t\\" : (this.IsDirectory ? "d\\" : "f\\"));
+                for (var i = 0; i < 20; i++)
+                {
+                    var b = Hash[i];
+                    var nibble = b >> 4;
+                    s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
+                    if (i == 1 && !tempFile)
+                        s.Append('\\');
+                    nibble = b & 0xF;
+                    s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
+                }
+                return s.ToString();
+            }
         }
 
-        public void CopyFile(string source, string dest)
+        delegate void LinkDelegate(string name, HashEntry entry);
+
+        #endregion
+        #region privates
+        LinkDelegate _createLink;
+        HashAlgorithm HASH_ALG;
+
+        void CopyFile(string source, string dest)
         {
-            if (DEMO) return;
+            if (this.Demo) return;
             while (true)
             {
                 var error = Win32.CopyFileEx(source, dest, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, Win32.CopyFileFlags.FAIL_IF_EXISTS) ?
@@ -100,7 +83,7 @@ namespace de.intronik.hashcopy
             }
         }
 
-        public void CreateSymbolicLink(string name, HashEntry entry)
+        void CreateSymbolicLink(string name, HashEntry entry)
         {
             while (true)
             {
@@ -135,7 +118,7 @@ namespace de.intronik.hashcopy
             }
         }
 
-        public void CreateHardLinkOrJunction(string name, HashEntry entry)
+        void CreateHardLinkOrJunction(string name, HashEntry entry)
         {
             var target = HashDir + entry.ToString();
             if (entry.IsDirectory)
@@ -175,7 +158,8 @@ namespace de.intronik.hashcopy
                 }
         }
 
-        public HashEntry Run(FileSystemInfo fileSystemInfo, int level)
+
+        HashEntry Run(FileSystemInfo fileSystemInfo, int level)
         {
             try
             {
@@ -223,10 +207,10 @@ namespace de.intronik.hashcopy
                         return directoryEntry;
                     }
                     // create link structure in temp directory first                    
-                    var tmpDirName = this.HashDir + directoryEntry.ToString('$') + "\\";
+                    var tmpDirName = this.HashDir + directoryEntry.ToString(true) + "\\";
                     Directory.CreateDirectory(tmpDirName);
                     foreach (var subEntry in directoryEntries)
-                        this.CreateLink(tmpDirName + subEntry.Info.Name, subEntry);
+                        this._createLink(tmpDirName + subEntry.Info.Name, subEntry);
                     // we are done, rename directory
                     Directory.Move(tmpDirName, td);
                     return directoryEntry;
@@ -253,6 +237,87 @@ namespace de.intronik.hashcopy
                 return null;
             }
         }
+        #endregion
+
+        #region statistics
+        public long ErrorCount { get; private set; }
+        public long FileCount { get; private set; }
+        public long DirectoryCount { get; private set; }
+        public long CopyCount { get; private set; }
+        public long SymLinkCount { get; private set; }
+        public long JunctionCount { get; private set; }
+        public long SkippedJunctionCount { get; private set; }
+        public long SkippedTreeCount { get; private set; }
+        public long HardLinkCount { get; private set; }
+        public long SkippedHardLinkCount { get; private set; }
+        public long MoveCount { get; private set; }
+        public long SkippedSymLinkCount { get; private set; }
+        #endregion
+
+        #region Options
+        public string HashDir { get; set; }
+        public bool Demo { get; set; }
+        public string DateTimeFormat { get; set; }
+        public LinkGeneration LinkGeneration
+        {
+            get { return this._createLink == this.CreateSymbolicLink ? LinkGeneration.Symbolic : LinkGeneration.Junction; }
+            set
+            {
+                switch (value)
+                {
+                    case LinkGeneration.Symbolic:
+                        this._createLink = this.CreateSymbolicLink;
+                        break;
+                    case LinkGeneration.Junction:
+                        this._createLink = this.CreateHardLinkOrJunction;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException("LinkGeneration", value, "Unsupported link generation method!");
+                }
+            }
+        }
+        #endregion
+
+        public HashLinkCopy()
+        {
+            this.HASH_ALG = SHA1.Create();
+            this.LinkGeneration = System.Environment.OSVersion.Version.Major >= 6 ? LinkGeneration.Symbolic : LinkGeneration.Junction;
+            this.DateTimeFormat = @"yyyy-MM-dd_HH.mm";
+        }
+
+
+        public void Run(string targetDirectory, IEnumerable<string> sourceDirectories)
+        {
+            // save the current date
+            var currentDate = DateTime.Now.ToString(DateTimeFormat);
+            // create a target directory and replace the * by the current date string
+            var targetDir = Path.GetFullPath(targetDirectory.Replace("*", currentDate));
+            // when no explicit hash directory was given, use the root folder of the target directory
+            if (String.IsNullOrEmpty(this.HashDir))
+                this.HashDir = Path.Combine(Path.GetPathRoot(targetDir), "Hash");
+            // make sure the hash dir ends with a backslash
+            this.HashDir = HashDir.EndsWith(Path.DirectorySeparatorChar.ToString()) ? HashDir : (HashDir + Path.DirectorySeparatorChar.ToString());
+            // make sure all hash directories exist!
+            for (var i = 0; i < (1 << 12); i++)
+            {
+                Directory.CreateDirectory(Path.Combine(this.HashDir, "f", i.ToString("X3")));
+                Directory.CreateDirectory(Path.Combine(this.HashDir, "d", i.ToString("X3")));
+            }
+            // delete temp directory content
+            Directory.Delete(Path.Combine(this.HashDir, "t"), true);
+            // recreate temp directory
+            Directory.CreateDirectory(Path.Combine(this.HashDir, "t"));
+            // Make sure the target directory exists
+            Directory.CreateDirectory(targetDir);
+            // run for all directories
+            foreach (var sourceDir in sourceDirectories)
+            {
+                // get directory info
+                var info = new DirectoryInfo(sourceDir);
+                // create a link for each source directory
+                this._createLink(Path.Combine(targetDir, info.Name), this.Run(info, 1));
+            }
+        }
     }
 
     class Program
@@ -262,59 +327,42 @@ namespace de.intronik.hashcopy
         {
             Console.WriteLine("{0,-20}: {1}", name, value);
         }
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
-            if (args.Length < 3)
-            {
-                Console.WriteLine("Usage is {0} SOURCE DEST NAME [HASHDIR] [symbolic]", "de.intronik.hashcopy.exe");
-                return;
-            }
             try
             {
-                Hasher.DEMO = false;
+                var hashCopy = new HashLinkCopy();
+                if (args.Length < 2)
+                {
+                    Console.WriteLine("at least two parameters are required target directory and at least one source directory");
+                    return 1;
+                }
                 var start = DateTime.Now;
-                var source = new DirectoryInfo(args[0]);
-                var targetFolder = Path.GetFullPath(args[1]);
-                var hashDirectory = Path.GetFullPath(args.Length < 4 ? Path.Combine(targetFolder, "Hash") : args[3]);
-                var name = args[2].Replace("*", String.Format("{0:yyyy-MM-dd_HH.mm}", DateTime.Now));
-                print("Start", start);
-                print("Source", source);
-                print("Target Folder", targetFolder);
-                print("Target Name", name);
-                print("Hash Folder", hashDirectory);
-                var h = new Hasher(hashDirectory);
-                print("Mode", h.CreateLink.Method.Name);
-                // select which algorithm to use
-                h.CreateLink = (args.Length > 4 && String.Compare(args[4], "symbolic", true) == 0) ?
-                        (Hasher.LinkDelegate)h.CreateSymbolicLink :
-                        (Hasher.LinkDelegate)h.CreateHardLinkOrJunction;
-                h.CreateLink(Path.Combine(targetFolder, name), h.Run(source, 0));
+                hashCopy.Run(args.First(), args.Skip(1));
                 var end = DateTime.Now;
                 var et = end.Subtract(start);
                 print("Start", start);
                 print("End", end);
-                print("Source", source);
-                print("Target Folder", targetFolder);
-                print("Target Name", name);
-                print("Hash Folder", hashDirectory);
-                print("files", h.FileCount);
-                print("directories", h.DirectoryCount);
-                print("copied files", h.CopyCount);
-                print("symbolic links", h.SymLinkCount);
-                print("s. symbolic links", h.SkippedSymLinkCount);
-                print("hard link", h.HardLinkCount);
-                print("skipped hard links", h.SkippedHardLinkCount);
-                print("moved files", h.MoveCount);
-                print("junctions", h.JunctionCount);
-                print("skipped junctions", h.SkippedJunctionCount);
-                print("skipped tree count", h.SkippedTreeCount);
-                print("error count", h.ErrorCount);
+                print("files", hashCopy.FileCount);
+                print("directories", hashCopy.DirectoryCount);
+                print("copied files", hashCopy.CopyCount);
+                print("symbolic links", hashCopy.SymLinkCount);
+                print("s. symbolic links", hashCopy.SkippedSymLinkCount);
+                print("hard link", hashCopy.HardLinkCount);
+                print("skipped hard links", hashCopy.SkippedHardLinkCount);
+                print("moved files", hashCopy.MoveCount);
+                print("junctions", hashCopy.JunctionCount);
+                print("skipped junctions", hashCopy.SkippedJunctionCount);
+                print("skipped tree count", hashCopy.SkippedTreeCount);
+                print("error count", hashCopy.ErrorCount);
                 print("duration", et);
+                return 0;
             }
             catch (Exception e)
             {
                 Console.Error.WriteLine(e.ToString());
                 Console.WriteLine(e.ToString());
+                return 2;
             }
         }
     }
