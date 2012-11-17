@@ -8,5 +8,5 @@ rem for %%x in (Projekte Betriebsorganisation Indel Buchhaltung) do (
 rem for /F "tokens=*" %%x in (BackDirectories.txt) do (
 for /F "tokens=*" %%x in (BackupDirectories.txt) do (
 	echo %tf%%%x = D:\%%x
-	hashcopy.exe D:\%%x\ %tf%
+	hashcopy.exe D:\%%x\ %tf%%%x\
 )

@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Security.Principal;
+using System.Windows.Forms;
 using System.Security.Cryptography;
 using System.IO;
 using System.Collections.Generic;
@@ -83,6 +85,13 @@ namespace de.intronik.hashcopy
             }
         }
 
+        private static bool HasAdministratorPrivileges()
+        {
+            WindowsIdentity id = WindowsIdentity.GetCurrent();
+            WindowsPrincipal principal = new WindowsPrincipal(id);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
         void CreateSymbolicLink(string name, HashEntry entry)
         {
             while (true)
@@ -103,8 +112,8 @@ namespace de.intronik.hashcopy
                         return;
                     case 80:    // ERROR_FILE_EXISTS
                     case 183:   // ERROR_ALREADY_EXISTS
-                        this.SkippedSymLinkCount++;
-                        return;
+                        throw new InvalidOperationException(String.Format("Error creating symbolic link \"{0}\"=>\"{1}\". Directory already exists!", name, target));
+
                     case 1314:  // ERROR_PRIVILEGE_NOT_HELD
                         throw new System.Security.SecurityException("Not enough priveleges to create symbolic links!", new System.ComponentModel.Win32Exception(error));
                     case 2:     // ERROR_FILE_NOT_FOUND
@@ -159,7 +168,7 @@ namespace de.intronik.hashcopy
         }
 
 
-        HashEntry Run(FileSystemInfo fileSystemInfo, int level)
+        HashEntry BuildHashEntry(FileSystemInfo fileSystemInfo, int level)
         {
             try
             {
@@ -168,6 +177,8 @@ namespace de.intronik.hashcopy
                     //
                     // HANDLE SUBDIRECTORY
                     //
+                    if (level <= MaxDisplayLevel)
+                        Console.WriteLine("".PadLeft(level, ' ') + fileSystemInfo.FullName);
                     var sourceDirectory = (DirectoryInfo)fileSystemInfo;
                     //Console.WriteLine("{1}[{0}]", fileSystemInfo.Name, "".PadLeft(level));
                     this.DirectoryCount++;
@@ -186,7 +197,7 @@ namespace de.intronik.hashcopy
                     var directoryEntries = new List<HashEntry>(500);
                     foreach (var entry in sourceDirectory.EnumerateFileSystemInfos())
                     {
-                        var subEntry = this.Run(entry, level + 1);
+                        var subEntry = this.BuildHashEntry(entry, level + 1);
                         if (subEntry != null)
                         {
                             w.Write(subEntry.Info.Attributes.HasFlag(FileAttributes.Directory));
@@ -251,13 +262,28 @@ namespace de.intronik.hashcopy
         public long HardLinkCount { get; private set; }
         public long SkippedHardLinkCount { get; private set; }
         public long MoveCount { get; private set; }
-        public long SkippedSymLinkCount { get; private set; }
         #endregion
 
         #region Options
-        public string HashDir { get; set; }
+        public int MaxDisplayLevel { get; set; }
+        public DateTime Start { get; private set; }
+        public DateTime End { get; private set; }
+        public TimeSpan Elapsed { get { return End.Subtract(Start); } }
+        string _hashDir;
+        public string HashDir
+        {
+            get { return this._hashDir; }
+            set
+            {
+                if (string.IsNullOrEmpty(value))
+                    throw new InvalidOperationException("HashDir can't be empty!");
+                value = Path.GetFullPath(value);
+                // make sure the hash dir ends with a backslash
+                var sep = Path.DirectorySeparatorChar.ToString();
+                _hashDir = value.EndsWith(sep) ? value : (value + sep);
+            }
+        }
         public bool Demo { get; set; }
-        public string DateTimeFormat { get; set; }
         public LinkGeneration LinkGeneration
         {
             get { return this._createLink == this.CreateSymbolicLink ? LinkGeneration.Symbolic : LinkGeneration.Junction; }
@@ -282,40 +308,51 @@ namespace de.intronik.hashcopy
         {
             this.HASH_ALG = SHA1.Create();
             this.LinkGeneration = System.Environment.OSVersion.Version.Major >= 6 ? LinkGeneration.Symbolic : LinkGeneration.Junction;
-            this.DateTimeFormat = @"yyyy-MM-dd_HH.mm";
+            this.Start = DateTime.Now;
+            this.MaxDisplayLevel = 3;
         }
 
 
-        public void Run(string targetDirectory, IEnumerable<string> sourceDirectories)
+        public void Run(string sourceDirectory, string targetDir)
         {
-            // save the current date
-            var currentDate = DateTime.Now.ToString(DateTimeFormat);
-            // create a target directory and replace the * by the current date string
-            var targetDir = Path.GetFullPath(targetDirectory.Replace("*", currentDate));
-            // when no explicit hash directory was given, use the root folder of the target directory
-            if (String.IsNullOrEmpty(this.HashDir))
-                this.HashDir = Path.Combine(Path.GetPathRoot(targetDir), "Hash");
-            // make sure the hash dir ends with a backslash
-            this.HashDir = HashDir.EndsWith(Path.DirectorySeparatorChar.ToString()) ? HashDir : (HashDir + Path.DirectorySeparatorChar.ToString());
-            // make sure all hash directories exist!
-            for (var i = 0; i < (1 << 12); i++)
+            try
             {
-                Directory.CreateDirectory(Path.Combine(this.HashDir, "f", i.ToString("X3")));
-                Directory.CreateDirectory(Path.Combine(this.HashDir, "d", i.ToString("X3")));
+                if (string.IsNullOrEmpty(this.HashDir))
+                    throw new InvalidOperationException("HashDir can't be empty!");
+                if (String.Compare(Path.GetPathRoot(this.HashDir), Path.GetPathRoot(targetDir), true) != 0)
+                    throw new InvalidOperationException("Target folder and HashDir must be on same drive!");
+                if (Directory.Exists(targetDir))
+                    throw new InvalidOperationException(String.Format("Target directory \"{0}\" already exists!", targetDir));
+                // check for priveleges
+                if (!HasAdministratorPrivileges())
+                    throw new System.Security.SecurityException("Access Denied. Administrator permissions are " +
+                        "needed to use the selected options. Use an administrator command " +
+                        "prompt to complete these tasks.");
+                // make sure all hash directories exist!
+                for (var i = 0; i < (1 << 12); i++)
+                {
+                    Directory.CreateDirectory(Path.Combine(this.HashDir, "f", i.ToString("X3")));
+                    Directory.CreateDirectory(Path.Combine(this.HashDir, "d", i.ToString("X3")));
+                }
+                // delete temp directory content
+                var tempDir = Path.Combine(this.HashDir, "t");
+                if (Directory.Exists(tempDir))
+                    Directory.Delete(tempDir, true);
+                // recreate temp directory
+                Directory.CreateDirectory(Path.Combine(this.HashDir, "t"));
+                // Make sure the parent target directory exists
+                var parentDirectory = Path.GetFullPath(Path.Combine(targetDir, ".."));
+                Directory.CreateDirectory(parentDirectory);
+                // start link generation in first directory level
+                var hashEntry = this.BuildHashEntry(new DirectoryInfo(sourceDirectory), 1);
+                if (hashEntry != null)
+                    this._createLink(targetDir, hashEntry);
+                else
+                    throw new ApplicationException("Backup failed!");
             }
-            // delete temp directory content
-            Directory.Delete(Path.Combine(this.HashDir, "t"), true);
-            // recreate temp directory
-            Directory.CreateDirectory(Path.Combine(this.HashDir, "t"));
-            // Make sure the target directory exists
-            Directory.CreateDirectory(targetDir);
-            // run for all directories
-            foreach (var sourceDir in sourceDirectories)
+            finally
             {
-                // get directory info
-                var info = new DirectoryInfo(sourceDir);
-                // create a link for each source directory
-                this._createLink(Path.Combine(targetDir, info.Name), this.Run(info, 1));
+                this.End = DateTime.Now;
             }
         }
     }
@@ -327,27 +364,54 @@ namespace de.intronik.hashcopy
         {
             Console.WriteLine("{0,-20}: {1}", name, value);
         }
-        static int Main(string[] args)
+
+        static int Run(string[] args)
         {
             try
             {
                 var hashCopy = new HashLinkCopy();
-                if (args.Length < 2)
+                // get the destination folder
+                var destinationDirectory = args.Length >= 2 ? args[1] : "*";
+                destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", hashCopy.Start.ToString(@"yyyy-MM-dd_HH.mm")));
+                // hash dirctory
+                hashCopy.HashDir = Path.GetFullPath(args.Length >= 3 ? args[2] : Path.Combine(Path.GetPathRoot(destinationDirectory), "Hash"));
+                if (args.Length < 1 || args.Length > 3)
                 {
-                    Console.WriteLine("at least two parameters are required target directory and at least one source directory");
+                    var exeName = Path.GetFileName(Application.ExecutablePath);
+                    Console.WriteLine("{0} v{1} - Copyright © 2012, Daniel Gross, daniel@belucha.de", exeName, Application.ProductVersion);
+                    Console.WriteLine("Symbolic and Hard link based backup tool using SHA1 and ADS for efficent performance!");
+                    Console.WriteLine();
+                    Console.WriteLine("Usage:");
+                    Console.WriteLine("{0} SourceDirectory [DestinationDirectory] [HashDirectory]", exeName);
+                    Console.WriteLine();
+                    Console.WriteLine("Default DestinationDirectory is the current folder + *");
+                    Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the current date");
+                    Console.WriteLine("\tCurrently: {0}", destinationDirectory);
+                    Console.WriteLine("Default HashDirectory is the root path of the destination directory + Hash");
+                    Console.WriteLine("\tCurrently: {0}", hashCopy.HashDir);
+                    Console.WriteLine();
+                    Console.WriteLine();
+                    Console.WriteLine("Examples:");
+                    Console.WriteLine("\t- Backup all files and subdirectories on drive D to drive F under the current date.");
+                    Console.WriteLine("\t  The complete directory structure of D will be available within F:\\2012-11-13\\");
+                    Console.WriteLine("\t  Command Line: {0} D:\\ F:\\2012-11-13\\", exeName);
+                    Console.WriteLine("\t  Default hashdir is F:\\Hash\\");
                     return 1;
                 }
-                var start = DateTime.Now;
-                hashCopy.Run(args.First(), args.Skip(1));
-                var end = DateTime.Now;
-                var et = end.Subtract(start);
-                print("Start", start);
-                print("End", end);
+                // source directory
+                var sourceDirectory = Path.GetFullPath(args[0]);
+                print("SourceDir", sourceDirectory);
+                print("TargetDir", destinationDirectory);
+                print("HashDir", hashCopy.HashDir);
+                // RUN
+                hashCopy.Run(sourceDirectory, destinationDirectory);
+                // Statistics
+                print("Start", hashCopy.Start);
+                print("End", hashCopy.End);
                 print("files", hashCopy.FileCount);
                 print("directories", hashCopy.DirectoryCount);
                 print("copied files", hashCopy.CopyCount);
                 print("symbolic links", hashCopy.SymLinkCount);
-                print("s. symbolic links", hashCopy.SkippedSymLinkCount);
                 print("hard link", hashCopy.HardLinkCount);
                 print("skipped hard links", hashCopy.SkippedHardLinkCount);
                 print("moved files", hashCopy.MoveCount);
@@ -355,15 +419,28 @@ namespace de.intronik.hashcopy
                 print("skipped junctions", hashCopy.SkippedJunctionCount);
                 print("skipped tree count", hashCopy.SkippedTreeCount);
                 print("error count", hashCopy.ErrorCount);
-                print("duration", et);
+                print("duration", hashCopy.Elapsed);
                 return 0;
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine(e.ToString());
-                Console.WriteLine(e.ToString());
+                Console.WriteLine("Backup failed!");
+                Console.WriteLine("\t{0,-20}{1}", "Error:", e.GetType().Name);
+                Console.WriteLine("\t{0,-20}{1}", "Message:", e.Message);
                 return 2;
             }
+        }
+
+        static int Main(string[] args)
+        {
+            var result = Run(args);
+            if (result != 0)
+            {
+                Console.WriteLine();
+                Console.WriteLine("There were some messages/errors - press return to quit!");
+                Console.ReadLine();
+            }
+            return result;
         }
     }
 }
