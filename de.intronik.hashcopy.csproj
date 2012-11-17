@@ -71,9 +71,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.manifest" />
-    <None Include="Backup.cmd">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <None Include="Backup.cmd" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">

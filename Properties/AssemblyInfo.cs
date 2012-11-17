@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 // Allgemeine Informationen über eine Assembly werden über die folgenden 
 // Attribute gesteuert. Ändern Sie diese Attributwerte, um die Informationen zu ändern,
 // die mit einer Assembly verknüpft sind.
-[assembly: AssemblyTitle("de.intronik.hashcopy")]
+[assembly: AssemblyTitle("git://github.com/belucha/hashlinkcopy.git")]
 [assembly: AssemblyDescription("Symbolic and Hard link based backup tool using SHA1 and ADS for efficent performance!")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Intronik GmbH")]
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 // Sie können alle Werte angeben oder die standardmäßigen Build- und Revisionsnummern 
 // übernehmen, indem Sie "*" eingeben:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("2.0.0.0")]
-[assembly: AssemblyFileVersion("2.0.0.0")]
+[assembly: AssemblyVersion("2.1.0.0")]
+[assembly: AssemblyFileVersion("2.1.0.0")]

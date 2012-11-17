@@ -365,16 +365,11 @@ namespace de.intronik.hashcopy
             Console.WriteLine("{0,-20}: {1}", name, value);
         }
 
-        static int Run(string[] args)
+        static int Main(string[] args)
         {
             try
             {
                 var hashCopy = new HashLinkCopy();
-                // get the destination folder
-                var destinationDirectory = args.Length >= 2 ? args[1] : "*";
-                destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", hashCopy.Start.ToString(@"yyyy-MM-dd_HH.mm")));
-                // hash dirctory
-                hashCopy.HashDir = Path.GetFullPath(args.Length >= 3 ? args[2] : Path.Combine(Path.GetPathRoot(destinationDirectory), "Hash"));
                 if (args.Length < 1 || args.Length > 3)
                 {
                     var exeName = Path.GetFileName(Application.ExecutablePath);
@@ -385,10 +380,8 @@ namespace de.intronik.hashcopy
                     Console.WriteLine("{0} SourceDirectory [DestinationDirectory] [HashDirectory]", exeName);
                     Console.WriteLine();
                     Console.WriteLine("Default DestinationDirectory is the current folder + *");
-                    Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the current date");
-                    Console.WriteLine("\tCurrently: {0}", destinationDirectory);
+                    Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the name of the source folder");
                     Console.WriteLine("Default HashDirectory is the root path of the destination directory + Hash");
-                    Console.WriteLine("\tCurrently: {0}", hashCopy.HashDir);
                     Console.WriteLine();
                     Console.WriteLine();
                     Console.WriteLine("Examples:");
@@ -401,7 +394,13 @@ namespace de.intronik.hashcopy
                 // source directory
                 var sourceDirectory = Path.GetFullPath(args[0]);
                 print("SourceDir", sourceDirectory);
+                var sourceInfo = new DirectoryInfo(sourceDirectory);
+                // get the destination folder
+                var destinationDirectory = args.Length >= 2 ? args[1] : Path.Combine(Directory.GetCurrentDirectory(), "*");
+                destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", sourceInfo.Name));
                 print("TargetDir", destinationDirectory);
+                // hash directory
+                hashCopy.HashDir = Path.GetFullPath(args.Length >= 3 ? args[2] : Path.Combine(Path.GetPathRoot(destinationDirectory), "Hash"));
                 print("HashDir", hashCopy.HashDir);
                 // RUN
                 hashCopy.Run(sourceDirectory, destinationDirectory);
@@ -429,18 +428,6 @@ namespace de.intronik.hashcopy
                 Console.WriteLine("\t{0,-20}{1}", "Message:", e.Message);
                 return 2;
             }
-        }
-
-        static int Main(string[] args)
-        {
-            var result = Run(args);
-            if (result != 0)
-            {
-                Console.WriteLine();
-                Console.WriteLine("There were some messages/errors - press return to quit!");
-                Console.ReadLine();
-            }
-            return result;
         }
     }
 }
