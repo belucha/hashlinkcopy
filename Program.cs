@@ -11,105 +11,294 @@ namespace de.intronik.backup
 {
     class Program
     {
-        /// <summary>
-        /// Paginated WriteLine
-        /// </summary>
-        /// <param name="format"></param>
-        /// <param name="args"></param>
-        public static void WriteLine(string format, params object[] args)
-        {
-            Console.WriteLine(format, args);
-            if (Console.CursorTop == (Console.WindowHeight - 3))
-            {
-                Console.WriteLine("press any key for next page");
-                Console.ReadKey(true);
-                Console.Clear();
-            }
-        }
+        static long ErrorCount;
+        static long FileCount;
+        static long DirectoryCount;
+        static long CopyCount;
+        static long LinkFileCount;
+        static long LinkDirectoryCount;
+        static int DisplayLimit = 3;
+        static long ExcludedCount;
+        static string[] excludeList = new string[0];
 
         static void print(string name, object value)
         {
             Console.WriteLine("{0,-20}: {1}", name, value);
         }
 
-        static void PrintDest(string fn)
+        static void hashLinkCopy_Error(object sender, HashLinkErrorEventArgs e)
         {
-            Console.WriteLine("\"{0}\"=>\"{1}\"", fn, Win32.GetJunctionTarget(fn));
+            ErrorCount++;
+            Console.WriteLine("Error {0} on file \"{1}\", Message: \"{2}\"", e.Error.GetType().Name, e.Info.FullName, e.Error.Message);
         }
 
-        static int A(string[] args)
+        static void Print(int level, bool newLine, string input, params object[] args)
         {
-            try
+            var w = Console.BufferWidth;
+            var text = String.Format("".PadLeft(level) + input, args);
+            if (text.Length >= w)
+                text = text.Remove(level + 4, text.Length - w - level - 8).Insert(level + 4, "...");
+            Console.CursorLeft = 0;
+            if (newLine)
+                Console.WriteLine(text.PadRight(w - 1));
+            else
+                Console.Write(text.PadRight(w - 1));
+        }
+
+        static void hashLinkCopy_Action(object sender, HashLinkActionEventArgs e)
+        {
+#if DEBUG
+            // just to make display debug slower
+            Thread.Sleep(500);
+#endif
+            // checks if the entry is in the exclude list            
+            if (excludeList.Any(exclude => String.Compare(e.Info.Name, exclude, true) == 0))
             {
-                var c = new HashCleanup(@"g:\Hash");
-                c.CheckDirectories(@"g:\");
-                c.DeleteUnused();
-                Console.WriteLine("done");
+                ExcludedCount++;
+                Print(e.Level, false, "{0} (excluded)", e.Info.FullName);
+                e.Cancel = true;
             }
-            catch (Exception e)
+            else
             {
-                Console.WriteLine(e);
+                switch (e.Action)
+                {
+                    case HashLinkAction.EnterSourceDirectory:
+                        DirectoryCount++;
+                        break;
+                    case HashLinkAction.ProcessSourceFile:
+                        FileCount++;
+                        break;
+                    case HashLinkAction.CopyFile:
+                        CopyCount++;
+                        break;
+                    case HashLinkAction.LinkDirectory:
+                        LinkDirectoryCount++;
+                        break;
+                    case HashLinkAction.LinkFile:
+                        LinkFileCount++;
+                        break;
+                }
+                if (e.Action == HashLinkAction.EnterSourceDirectory && e.Level <= DisplayLimit)
+                    Print(e.Level, true, e.Info.FullName);
+                else
+                    Print(e.Level, false, "{0} ({1})", e.Info.FullName, e.Action);
             }
-            Console.ReadLine();
-            return 0;
+            Console.Title = String.Format("BackupTool [dirs:{0}/files:{1}/copied:{2}/linked folders:{3}/linked files:{4}/excluded:{5}/Errors:{6}]", DirectoryCount, FileCount, CopyCount, LinkDirectoryCount, LinkFileCount, ExcludedCount, ErrorCount);
+        }
+
+        static int Help()
+        {
+            var exeName = Path.GetFileName(Application.ExecutablePath);
+            Console.WriteLine("{0} v{1} - Copyright © 2012, Daniel Gross, daniel@belucha.de", exeName, Application.ProductVersion);
+            Console.WriteLine("Symbolic and Hard link based backup tool using SHA1 and ADS for efficent performance!");
+            Console.WriteLine();
+            Console.WriteLine("Usage:");
+            Console.WriteLine("{0} SourcePath [DestinationPath]", exeName);
+            Console.WriteLine();
+            Console.WriteLine("Default destination is the current folder + *");
+            Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the current date in the form yyyy-mm-dd");
+            Console.WriteLine("Default HashDirectory is the root path of the destination directory + Hash");
+            Console.WriteLine();
+            Console.WriteLine();
+            Console.WriteLine("Examples:");
+            Console.WriteLine("\t- Backup all files and subdirectories on drive D to drive F under the current date.");
+            Console.WriteLine("\t  The complete directory structure of D will be available within F:\\2012-11-13\\");
+            Console.WriteLine("\t  Command Line: {0} D:\\ F:\\2012-11-13\\", exeName);
+            Console.WriteLine("\t  Default hashdir is F:\\Hash\\");
+            return 1;
+        }
+
+        static string FormatBytes(long bytes)
+        {
+            var units = new string[] { "Byte", "Kb", "Mb", "Gb", };
+            if (bytes < 1024)
+                return String.Format("{0}{1}", bytes, units[0]);
+            var b = new StringBuilder();
+            for (var p = units.Length - 1; p >= 0; p--)
+            {
+                var c = (bytes >> (p * 10)) & 1023;
+                if (c > 0)
+                    b.AppendFormat("{0}{1} ", c, units[p]);
+            }
+            return b.ToString();
+        }
+
+        public enum Operation
+        {
+            Backup = 1,
+            Clean,
+            //  other operations
+            Default = Backup,
+            Copy = Backup,
+        }
+
+        public enum Option
+        {
+            Operation,
+            HashDir,
+            Exclude,
+            EnableDelete,
         }
 
         static int Main(string[] args)
         {
+            Dictionary<Option, string> options;
+            string[] parameters;
+            string hashDir = null;
+            var operation = Operation.Default;
+            bool enableDelete = false;
             try
             {
-                var hashCopy = new SymbolicHashLinkCopy();
-                var view = new ConsoleViewer(hashCopy);
-                if (args.Length < 1 || args.Length > 3)
+                options = args.Where(arg => arg.StartsWith("--")).Select(arg => arg.Substring(2).Split(new char[] { ':', '=', }, 2)).ToDictionary(pair => (Option)Enum.Parse(typeof(Option), pair[0], true), pair => pair.Length > 1 ? pair[1] : null);
+                parameters = args.Where(arg => !arg.StartsWith("--")).ToArray();
+                foreach (var kvp in options)
+                    try
+                    {
+                        switch (kvp.Key)
+                        {
+                            case Option.Operation:
+                                operation = (Operation)Enum.Parse(typeof(Operation), kvp.Value, true);
+                                break;
+                            case Option.HashDir:
+                                hashDir = kvp.Value;
+                                break;
+                            case Option.EnableDelete:
+                                if (kvp.Value != null)
+                                    throw new InvalidOperationException("No value allowed for this option!");
+                                enableDelete = true;
+                                break;
+                            case Option.Exclude:
+                                if (kvp.Value.StartsWith("@"))
+                                    excludeList = File.ReadAllLines(kvp.Value.Substring(1));
+                                else
+                                    excludeList = kvp.Value.Split(';');
+                                break;
+                            default:
+                                throw new ArgumentOutOfRangeException(String.Format("Unknown option {0}!", kvp.Key));
+                        }
+                    }
+                    catch (Exception error)
+                    {
+                        throw new InvalidOperationException(String.Format("{2} while processing option: --{0} with value \"{1}\"!\nMessage: \"{3}\"", kvp.Key, kvp.Value, error.GetType().Name, error.Message), error);
+                    }
+                switch (operation)
                 {
-                    var exeName = Path.GetFileName(Application.ExecutablePath);
-                    Console.WriteLine("{0} v{1} - Copyright © 2012, Daniel Gross, daniel@belucha.de", exeName, Application.ProductVersion);
-                    Console.WriteLine("Symbolic and Hard link based backup tool using SHA1 and ADS for efficent performance!");
-                    Console.WriteLine();
-                    Console.WriteLine("Usage:");
-                    Console.WriteLine("{0} SourcePath [DestinationPath] [HashDirectory]", exeName);
-                    Console.WriteLine();
-                    Console.WriteLine("Default destination is the current folder + *");
-                    Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the current date in the form yyyy-mm-dd");
-                    Console.WriteLine("Default HashDirectory is the root path of the destination directory + Hash");
-                    Console.WriteLine();
-                    Console.WriteLine();
-                    Console.WriteLine("Examples:");
-                    Console.WriteLine("\t- Backup all files and subdirectories on drive D to drive F under the current date.");
-                    Console.WriteLine("\t  The complete directory structure of D will be available within F:\\2012-11-13\\");
-                    Console.WriteLine("\t  Command Line: {0} D:\\ F:\\2012-11-13\\", exeName);
-                    Console.WriteLine("\t  Default hashdir is F:\\Hash\\");
-                    return 1;
+                    case Operation.Clean:
+                        break;
+                    case Operation.Backup:
+                        if (parameters.Length < 1 || parameters.Length > 2)
+                            throw new ArgumentOutOfRangeException("Invalid numer of parameters!\nAt least one parameter, but a maximum of two parameters are possible!");
+                        break;
                 }
-                // source directory
-                var sourceDirectory = Path.GetFullPath(args[0]);
-                print("Source path", sourceDirectory);
-                // get the destination folder
-                var destinationDirectory = args.Length >= 2 ? args[1] : Path.Combine(Directory.GetCurrentDirectory(), "*");
-                destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", DateTime.Now.ToString("yyyy-MM-dd")));
-                print("Desitination path", destinationDirectory);
-                // hash directory
-                if (args.Length >= 3)
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Error parsing command line arguments!");
+                Console.WriteLine("\t{0,-20}{1}", "Error:", e.GetType().Name);
+                Console.WriteLine("\t{0,-20}{1}", "Message:", e.Message);
+                Console.WriteLine();
+                return Help();
+            }
+
+            try
+            {
+                switch (operation)
                 {
-                    hashCopy.HashDir = args[2];
-                    print("Hash folder", hashCopy.HashDir);
+                    case Operation.Backup:
+                        {
+                            HashLinkCopyBase hashCopy = new SymbolicHashLinkCopy();
+                            hashCopy.Action += hashLinkCopy_Action;
+                            hashCopy.Error += hashLinkCopy_Error;
+                            if (!String.IsNullOrEmpty(hashDir))
+                                hashCopy.HashDir = hashDir;
+                            // source directory
+                            var sourceDirectory = Path.GetFullPath(parameters[0]);
+                            print("Source path", sourceDirectory);
+                            // get the destination folder
+                            var destinationDirectory = parameters.Length >= 2 ? parameters[1] : Path.Combine(Directory.GetCurrentDirectory(), "*");
+                            destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", DateTime.Now.ToString("yyyy-MM-dd")));
+                            print("Desitination path", destinationDirectory);
+                            // RUN
+                            hashCopy.Copy(sourceDirectory, destinationDirectory);
+                            // Statistics
+                            print("Start", hashCopy.Start);
+                            print("End", hashCopy.End);
+                            print("Duration", hashCopy.Elapsed);
+                            print("Directories", DirectoryCount);
+                            print("Files", FileCount);
+                            print("Linked Files", LinkFileCount);
+                            print("Linked Folders", LinkDirectoryCount);
+                            print("Copied Files", CopyCount);
+                            print("Copied Files", ExcludedCount);
+                        }
+                        break;
+                    case Operation.Clean:
+                        {
+                            if (parameters.Length == 0)
+                                parameters = new string[] {
+                                    Directory.GetCurrentDirectory(),
+                                };
+                            if (String.IsNullOrEmpty(hashDir))
+                                hashDir = HashEntry.GetDefaultHashDir(parameters.First());
+                            var c = new HashCleanup(hashDir)
+                            {
+                                EnableDelete = enableDelete,
+                            };
+                            print("Hash dir", hashDir);
+                            print("Enabled delete", c.EnableDelete ? "yes" : "no");
+                            foreach (var dir in parameters)
+                            {
+                                Print(0, true, "Scanning: \"{0}\"", dir);
+                                c.CheckDirectories(dir);
+                            }
+                            print("Used hashs", c.UsedHashCount);
+                            if (c.UsedHashCount == 0)
+                            {
+                                Console.WriteLine("No has files where marked as used! There is propably an error in the parameters!");
+                                Console.Write("Continue anyway (this will erase the entire Hash directory)? [yes/NO] ");
+                                enableDelete = c.EnableDelete = false;
+                                if (String.Compare(Console.ReadLine().Trim(), "yes", true) != 0)
+                                {
+                                    Console.WriteLine("aborted");
+                                    return 1;
+                                }
+                            }
+                            if (!enableDelete)
+                                Console.WriteLine("Counting unused files and directories in hash folder...");
+                            else
+                                Console.WriteLine("Deleting files and directories from hash folder...");
+                            c.DeleteUnused();
+                            print(enableDelete ? "deleted files" : "unused files", c.deleteFileCount);
+                            print(enableDelete ? "deleted folders" : "unused folders", c.deleteDirCount);
+                            print(enableDelete ? "space gained" : "possible space", FormatBytes(c.totalBytesDeleted));
+                            if ((c.deleteDirCount > 0 || c.deleteFileCount > 0) && !enableDelete)
+                            {
+                                Console.Write("Do you want to delete these data (type \"yes\" completely or use command line option --enableDelete)? [yes/NO] ");
+                                if (String.Compare(Console.ReadLine().Trim(), "yes", true) != 0)
+                                {
+                                    Console.WriteLine("aborted");
+                                    return 1;
+                                }
+                                c.EnableDelete = true;
+                                Console.WriteLine("Deleting marked files and directories from hash folder...");
+                                c.DeleteUnused();
+                                if (c.UsedHashCount == 0)
+                                {
+                                    Console.WriteLine("Deleting hash root folder!");
+                                    Directory.Delete(hashDir, true);
+                                }
+                            }
+                            Console.WriteLine("done");
+                        }
+                        break;
+                    default:
+                        throw new NotSupportedException(String.Format("Operation {0} is not supported!", operation));
                 }
-                // RUN
-                hashCopy.Copy(sourceDirectory, destinationDirectory);
-                // Statistics
-                print("Start", hashCopy.Start);
-                print("End", hashCopy.End);
-                print("Duration", hashCopy.Elapsed);
-                print("Directories", view.DirectoryCount);
-                print("Files", view.FileCount);
-                print("Linked Files", view.LinkFileCount);
-                print("Linked Folders", view.LinkDirectoryCount);
-                print("Copied Files", view.CopyCount);
                 return 0;
             }
             catch (Exception e)
             {
-                Console.WriteLine("Backup failed!");
+                Console.WriteLine("{0} failed!", operation);
                 Console.WriteLine("\t{0,-20}{1}", "Error:", e.GetType().Name);
                 Console.WriteLine("\t{0,-20}{1}", "Message:", e.Message);
                 return 2;

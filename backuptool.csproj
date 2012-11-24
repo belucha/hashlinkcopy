@@ -64,7 +64,6 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="ConsoleViewer.cs" />
     <Compile Include="DirectoryHashEntry.cs" />
     <Compile Include="FileSystemHashEntry.cs" />
     <Compile Include="HashCleanup.cs" />

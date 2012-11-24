@@ -11,7 +11,7 @@ namespace de.intronik.backup
         public FileSystemInfo Info { get; private set; }
         public int Level { get; private set; }
         public HashLinkAction Action { get; private set; }
-        public bool Cancel { get; private set; }
+        public bool Cancel { get; set; }
         public HashLinkActionEventArgs(FileSystemInfo info, int level, HashLinkAction action)
         {
             this.Info = info;

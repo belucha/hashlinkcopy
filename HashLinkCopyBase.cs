@@ -41,7 +41,6 @@ namespace de.intronik.backup
             }
         }
 
-        const string DefaultHashDir = @"Hash";
         string _hashDir;
         string GetFullHashPath(HashEntry entry, bool tempfolder = false) { return this._hashDir + entry.ToString(tempfolder); }
         void PrepareHashDirectory()
@@ -197,7 +196,7 @@ namespace de.intronik.backup
                     destinationPath = Path.GetFullPath(Path.Combine(Path.GetPathRoot(sourceFileSystemInfo.FullName), destinationPath));
                 // check for empty hash directories -> use default if none was given
                 if (string.IsNullOrEmpty(this.HashDir))
-                    this.HashDir = Path.Combine(Path.GetPathRoot(destinationPath), DefaultHashDir);
+                    this.HashDir = HashEntry.GetDefaultHashDir(destinationPath);
                 // check if hash dir and taget folder are on the same volume
                 if (String.Compare(Path.GetPathRoot(this.HashDir), Path.GetPathRoot(destinationPath), true) != 0)
                     throw new InvalidOperationException("Target folder and HashDir must be on same volume!");
@@ -206,6 +205,8 @@ namespace de.intronik.backup
                 {
                     if (Directory.Exists(destinationPath))
                     {
+                        if (Win32.GetJunctionTarget(destinationPath) != null)
+                            throw new InvalidOperationException(String.Format("Target folder \"{0}\" is already a junction or symlink!", destinationPath));
                         destinationPath = Path.Combine(destinationPath, sourceFileSystemInfo.Name);
                         if (Directory.Exists(destinationPath))
                             throw new InvalidOperationException(String.Format("Target folder \"{0}\" is already existing!", destinationPath));
@@ -225,8 +226,8 @@ namespace de.intronik.backup
                 var hashEntry = this.BuildHashEntry(sourceFileSystemInfo, 1);
                 if (hashEntry != null)
                 {
-                    if (!OnAction(sourceFileSystemInfo is DirectoryInfo ? HashLinkAction.LinkDirectory : HashLinkAction.LinkFile, sourceFileSystemInfo, 1))
-                        this.CreateLink(destinationPath, hashEntry, 1);
+                    if (!OnAction(sourceFileSystemInfo is DirectoryInfo ? HashLinkAction.LinkDirectory : HashLinkAction.LinkFile, sourceFileSystemInfo, 0))
+                        this.CreateLink(destinationPath, hashEntry, 0);
                 }
                 else
                     throw new ApplicationException("Copy failed!");

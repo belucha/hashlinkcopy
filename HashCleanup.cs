@@ -11,8 +11,11 @@ namespace de.intronik.backup
         string hashFolder;
         int typeIndex;
         Dictionary<HashEntry, bool> usedHashs = new Dictionary<HashEntry, bool>();
-        uint deleteDirCount = 0;
-        uint deleteFileCount = 0;
+        public int UsedHashCount { get { return usedHashs.Count; } }
+        public uint deleteDirCount = 0;
+        public uint deleteFileCount = 0;
+        public long totalBytesDeleted = 0;
+        public bool EnableDelete { get; set; }
 
         public HashCleanup(string hashFolder)
         {
@@ -25,7 +28,6 @@ namespace de.intronik.backup
         void MarkHashEntryAsUsed(string hashEntryPath, int level = 0)
         {
             if (hashEntryPath == null) return;
-            Console.Title = String.Format("{0}: {1}", level, hashEntryPath);
             var hashEntry = new PathHashEntry(hashEntryPath, this.typeIndex);
             if (hashEntry.IsDirectory)
             {
@@ -51,13 +53,16 @@ namespace de.intronik.backup
         public void CheckDirectories(DirectoryInfo directory, int level = 0)
         {
             if (directory == null) return;
-            Console.WriteLine(directory.FullName);
             try
             {
                 foreach (var entry in directory.GetFileSystemInfos())
                 {
                     // ignore hash folder                
                     if (entry.FullName.StartsWith(this.hashFolder, StringComparison.InvariantCultureIgnoreCase))
+                        continue;
+                    if ((entry.Attributes & FileAttributes.System) == FileAttributes.System)
+                        continue;
+                    if ((entry.Attributes & FileAttributes.Hidden) == FileAttributes.Hidden)
                         continue;
                     // check if the folder is a symbolic link
                     var t = Win32.GetJunctionTarget(entry.FullName);
@@ -81,26 +86,29 @@ namespace de.intronik.backup
             CheckDirectories(new DirectoryInfo(path), 0);
         }
 
-        void DeleteUnused(string hashDir, int typeIndex)
+        void DeleteUnused(DirectoryInfo directory, int typeIndex)
         {
-            foreach (var entry in Directory.GetFileSystemEntries(hashDir))
+            foreach (var entry in directory.GetFileSystemInfos())
             {
-                var h = new PathHashEntry(entry, typeIndex);
+                var h = new PathHashEntry(entry.FullName, typeIndex);
                 if (!this.usedHashs.ContainsKey(h))
                 {
-                    Console.WriteLine("Delete '{0}'", entry);
                     if (h.IsDirectory)
                     {
-                        var entryInfo = new DirectoryInfo(entry);
-                        foreach (var subEntry in entryInfo.GetFileSystemInfos())
-                            subEntry.Delete();
-                        entryInfo.Delete();
+                        if (EnableDelete)
+                        {
+                            foreach (var subEntry in ((DirectoryInfo)entry).GetFileSystemInfos())
+                                subEntry.Delete();
+                            ((DirectoryInfo)entry).Delete();
+                        }
                         this.deleteDirCount++;
                     }
                     else
                     {
                         this.deleteFileCount++;
-                        File.Delete(entry);
+                        this.totalBytesDeleted += ((FileInfo)entry).Length;
+                        if (EnableDelete)
+                            entry.Delete();
                     }
                 }
             }
@@ -109,9 +117,9 @@ namespace de.intronik.backup
         public void DeleteUnused()
         {
             for (var i = 0; i < 4096; i++)
-                DeleteUnused(Path.Combine(this.hashFolder, "d", i.ToString("x3")), typeIndex);
+                DeleteUnused(new DirectoryInfo(Path.Combine(this.hashFolder, "d", i.ToString("x3"))), typeIndex);
             for (var i = 0; i < 4096; i++)
-                DeleteUnused(Path.Combine(this.hashFolder, "f", i.ToString("x3")), typeIndex);
+                DeleteUnused(new DirectoryInfo(Path.Combine(this.hashFolder, "f", i.ToString("x3"))), typeIndex);
         }
     }
 }

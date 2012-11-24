@@ -11,6 +11,13 @@ namespace de.intronik.backup
     /// </summary>
     public abstract class HashEntry
     {
+        const string DefaultHashDir = @"Hash";
+
+        public static string GetDefaultHashDir(string destinationPath)
+        {
+            return Path.Combine(Path.GetPathRoot(Path.GetFullPath(destinationPath)), DefaultHashDir) + Path.DirectorySeparatorChar.ToString();
+        }
+
         protected abstract bool GetIsDirectory();
 
         /// <summary>
