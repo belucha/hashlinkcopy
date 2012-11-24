@@ -9,10 +9,7 @@ using System.Text;
 
 namespace de.intronik.backup
 {
-    /// <summary>
-    /// Extension to Console
-    /// </summary>
-    public static class PagedConsole
+    class Program
     {
         /// <summary>
         /// Paginated WriteLine
@@ -29,10 +26,6 @@ namespace de.intronik.backup
                 Console.Clear();
             }
         }
-    }
-
-    class Program
-    {
 
         static void print(string name, object value)
         {
@@ -44,7 +37,7 @@ namespace de.intronik.backup
             Console.WriteLine("\"{0}\"=>\"{1}\"", fn, Win32.GetJunctionTarget(fn));
         }
 
-        static int Main(string[] args)
+        static int A(string[] args)
         {
             try
             {
@@ -61,11 +54,12 @@ namespace de.intronik.backup
             return 0;
         }
 
-        static int V(string[] args)
+        static int Main(string[] args)
         {
             try
             {
-                var hashCopy = new HashLinkCopy();
+                var hashCopy = new SymbolicHashLinkCopy();
+                var view = new ConsoleViewer(hashCopy);
                 if (args.Length < 1 || args.Length > 3)
                 {
                     var exeName = Path.GetFileName(Application.ExecutablePath);
@@ -73,10 +67,10 @@ namespace de.intronik.backup
                     Console.WriteLine("Symbolic and Hard link based backup tool using SHA1 and ADS for efficent performance!");
                     Console.WriteLine();
                     Console.WriteLine("Usage:");
-                    Console.WriteLine("{0} SourceDirectory [DestinationDirectory] [HashDirectory]", exeName);
+                    Console.WriteLine("{0} SourcePath [DestinationPath] [HashDirectory]", exeName);
                     Console.WriteLine();
-                    Console.WriteLine("Default DestinationDirectory is the current folder + *");
-                    Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the name of the source folder");
+                    Console.WriteLine("Default destination is the current folder + *");
+                    Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the current date in the form yyyy-mm-dd");
                     Console.WriteLine("Default HashDirectory is the root path of the destination directory + Hash");
                     Console.WriteLine();
                     Console.WriteLine();
@@ -89,32 +83,28 @@ namespace de.intronik.backup
                 }
                 // source directory
                 var sourceDirectory = Path.GetFullPath(args[0]);
-                print("SourceDir", sourceDirectory);
-                var sourceInfo = new DirectoryInfo(sourceDirectory);
+                print("Source path", sourceDirectory);
                 // get the destination folder
                 var destinationDirectory = args.Length >= 2 ? args[1] : Path.Combine(Directory.GetCurrentDirectory(), "*");
-                destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", sourceInfo.Name));
-                print("TargetDir", destinationDirectory);
+                destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", DateTime.Now.ToString("yyyy-MM-dd")));
+                print("Desitination path", destinationDirectory);
                 // hash directory
-                hashCopy.HashDir = Path.GetFullPath(args.Length >= 3 ? args[2] : Path.Combine(Path.GetPathRoot(destinationDirectory), "Hash"));
-                print("HashDir", hashCopy.HashDir);
+                if (args.Length >= 3)
+                {
+                    hashCopy.HashDir = args[2];
+                    print("Hash folder", hashCopy.HashDir);
+                }
                 // RUN
-                hashCopy.Run(sourceDirectory, destinationDirectory);
+                hashCopy.Copy(sourceDirectory, destinationDirectory);
                 // Statistics
                 print("Start", hashCopy.Start);
                 print("End", hashCopy.End);
-                print("files", hashCopy.FileCount);
-                print("directories", hashCopy.DirectoryCount);
-                print("copied files", hashCopy.CopyCount);
-                print("symbolic links", hashCopy.SymLinkCount);
-                print("hard link", hashCopy.HardLinkCount);
-                print("skipped hard links", hashCopy.SkippedHardLinkCount);
-                print("moved files", hashCopy.MoveCount);
-                print("junctions", hashCopy.JunctionCount);
-                print("skipped junctions", hashCopy.SkippedJunctionCount);
-                print("skipped tree count", hashCopy.SkippedTreeCount);
-                print("error count", hashCopy.ErrorCount);
-                print("duration", hashCopy.Elapsed);
+                print("Duration", hashCopy.Elapsed);
+                print("Directories", view.DirectoryCount);
+                print("Files", view.FileCount);
+                print("Linked Files", view.LinkFileCount);
+                print("Linked Folders", view.LinkDirectoryCount);
+                print("Copied Files", view.CopyCount);
                 return 0;
             }
             catch (Exception e)

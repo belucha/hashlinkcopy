@@ -64,15 +64,20 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConsoleViewer.cs" />
     <Compile Include="DirectoryHashEntry.cs" />
     <Compile Include="FileSystemHashEntry.cs" />
     <Compile Include="HashCleanup.cs" />
     <Compile Include="HashEntry.cs" />
     <Compile Include="FileHashEntry.cs" />
-    <Compile Include="HashLinkCopy.cs" />
+    <Compile Include="HashLinkCopyBase.cs" />
+    <Compile Include="HashLinkActionEventArgs.cs" />
+    <Compile Include="HashLinkErrorEventArgs.cs" />
+    <Compile Include="JunctionHashLinkCopy.cs" />
     <Compile Include="PathHashEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SymbolicHashLinkCopy.cs" />
     <Compile Include="Win32.cs" />
   </ItemGroup>
   <ItemGroup>
