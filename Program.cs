@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using System.Security.Principal;
 using System.Windows.Forms;
 using System.Security.Cryptography;
@@ -132,24 +133,57 @@ namespace de.intronik.backup
             Copy = Backup,
         }
 
+        public enum LinkCreation
+        {
+            Symbolic,
+            JunctionAndHardlink,
+            RSymbolic,
+        }
+
         public enum Option
         {
             Operation,
             HashDir,
             Exclude,
             EnableDelete,
+            LinkCreation,
+            DirectoryLinkCreation,
+            FileLinkCreation,
+        }
+
+        static int aMain(string[] args)
+        {
+            try
+            {
+                var s = Win32.GetJunctionTarget(@"d:\Projekte\Backup\2012-11-24\");
+                var symlink = @"D:\Temp\Hej";
+                var target = @"\Lyrics\";
+                Directory.CreateDirectory(symlink);
+                Win32.CreateSymbolLink(symlink, target, true);
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+            Console.ReadLine();
+            return 0;
         }
 
         static int Main(string[] args)
         {
-            Dictionary<Option, string> options;
+            List<KeyValuePair<Option, string>> options;
             string[] parameters;
             string hashDir = null;
+            var hashCopy = new HashLinkCopy();
             var operation = Operation.Default;
             bool enableDelete = false;
             try
             {
-                options = args.Where(arg => arg.StartsWith("--")).Select(arg => arg.Substring(2).Split(new char[] { ':', '=', }, 2)).ToDictionary(pair => (Option)Enum.Parse(typeof(Option), pair[0], true), pair => pair.Length > 1 ? pair[1] : null);
+                options = args
+                    .Where(arg => arg.StartsWith("--")).Select(arg => arg.Substring(2).Split(new char[] { ':', '=', }, 2))
+                    .Select(pair => new KeyValuePair<Option, string>((Option)Enum.Parse(typeof(Option), pair[0], true), pair.Length > 1 ? pair[1] : null))
+                    .OrderBy(kvp => kvp.Key)
+                    .ToList();
                 parameters = args.Where(arg => !arg.StartsWith("--")).ToArray();
                 foreach (var kvp in options)
                     try
@@ -173,6 +207,17 @@ namespace de.intronik.backup
                                 else
                                     excludeList = kvp.Value.Split(';');
                                 break;
+                            case Option.FileLinkCreation:
+                                hashCopy.FileLinkCreation = (FileLinkCreation)Enum.Parse(typeof(FileLinkCreation), kvp.Value, true);
+                                break;
+                            case Option.DirectoryLinkCreation:
+                                hashCopy.DirectoryLinkCreation = (DirectoryLinkCreation)Enum.Parse(typeof(DirectoryLinkCreation), kvp.Value, true);
+                                break;
+                            case Option.LinkCreation:
+                                var res = (LinkCreation)Enum.Parse(typeof(LinkCreation), kvp.Value, true);
+                                hashCopy.FileLinkCreation = (FileLinkCreation)(int)res;
+                                hashCopy.DirectoryLinkCreation = (DirectoryLinkCreation)(int)res;
+                                break;
                             default:
                                 throw new ArgumentOutOfRangeException(String.Format("Unknown option {0}!", kvp.Key));
                         }
@@ -181,6 +226,8 @@ namespace de.intronik.backup
                     {
                         throw new InvalidOperationException(String.Format("{2} while processing option: --{0} with value \"{1}\"!\nMessage: \"{3}\"", kvp.Key, kvp.Value, error.GetType().Name, error.Message), error);
                     }
+                if (parameters.Length == 0 && operation == Operation.Backup)
+                    return Help();
                 switch (operation)
                 {
                     case Operation.Clean:
@@ -206,7 +253,6 @@ namespace de.intronik.backup
                 {
                     case Operation.Backup:
                         {
-                            HashLinkCopyBase hashCopy = new SymbolicHashLinkCopy();
                             hashCopy.Action += hashLinkCopy_Action;
                             hashCopy.Error += hashLinkCopy_Error;
                             if (!String.IsNullOrEmpty(hashDir))

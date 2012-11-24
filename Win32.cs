@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
 using SafeFileHandle = Microsoft.Win32.SafeHandles.SafeFileHandle;
 
@@ -197,7 +198,7 @@ namespace de.intronik.backup
         private const string NonInterpretedPathPrefix = @"\??\";
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct REPARSE_DATA_BUFFER
+        private struct REPARSE_DATA_BUFFER_JUNCTION
         {
             /// <summary>
             /// Reparse point tag. Must be a Microsoft reparse point tag.
@@ -246,6 +247,66 @@ namespace de.intronik.backup
             public byte[] PathBuffer;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        private struct REPARSE_DATA_BUFFER_SYMLINK
+        {
+            /// <summary>
+            /// Reparse point tag. Must be a Microsoft reparse point tag.
+            /// </summary>
+            public uint ReparseTag;
+
+            /// <summary>
+            /// Size, in bytes, of the data after the Reserved member. This can be calculated by:
+            /// (4 * sizeof(ushort)) + SubstituteNameLength + PrintNameLength + 
+            /// (namesAreNullTerminated ? 2 * sizeof(char) : 0);
+            /// </summary>
+            public ushort ReparseDataLength;
+
+            /// <summary>
+            /// Reserved; do not use. 
+            /// </summary>
+            public ushort Reserved;
+
+            /// <summary>
+            /// Offset, in bytes, of the substitute name string in the PathBuffer array.
+            /// </summary>
+            public ushort SubstituteNameOffset;
+
+            /// <summary>
+            /// Length, in bytes, of the substitute name string. If this string is null-terminated,
+            /// SubstituteNameLength does not include space for the null character.
+            /// </summary>
+            public ushort SubstituteNameLength;
+
+            /// <summary>
+            /// Offset, in bytes, of the print name string in the PathBuffer array.
+            /// </summary>
+            public ushort PrintNameOffset;
+
+            /// <summary>
+            /// Length, in bytes, of the print name string. If this string is null-terminated,
+            /// PrintNameLength does not include space for the null character. 
+            /// </summary>
+            public ushort PrintNameLength;
+
+            /// <summary>
+            ///  A 32-bit field that specifies whether the substitute name is a full path name or a path name relative to the directory containing the symbolic link.
+            ///  This field contains one of the values in the following table.
+            ///  Symbol                 Value	    Meaning
+            ///                         0x00000000  The substitute name is a full path name.
+            ///  SYMLINK_FLAG_RELATIVE  0x00000001  The substitute name is a path name relative to the directory containing the symbolic link.
+            /// </summary>
+            public uint Flags;
+
+            /// <summary>
+            /// A buffer containing the unicode-encoded path string. The path string contains
+            /// the substitute name string and print name string.
+            /// </summary>
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 0x3FF0)]
+            public byte[] PathBuffer;
+        }
+
+
         [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern bool DeviceIoControl(IntPtr hDevice, uint dwIoControlCode,
             IntPtr InBuffer, int nInBufferSize,
@@ -263,13 +324,13 @@ namespace de.intronik.backup
         /// <param name="overwrite">If true overwrites an existing reparse point or empty directory</param>
         /// <exception cref="IOException">Thrown when the junction point could not be created or when
         /// an existing directory was found and <paramref name="overwrite" /> if false</exception>
-        public static void CreateJunction(string junctionPoint, string targetDir, bool overwrite)
+        public static void CreateJunction(string junctionPoint, string targetDir)
         {
             using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Write))
             {
-                byte[] targetDirBytes = Encoding.Unicode.GetBytes(NonInterpretedPathPrefix + Path.GetFullPath(targetDir));
+                byte[] targetDirBytes = Encoding.Unicode.GetBytes(NonInterpretedPathPrefix + targetDir);
 
-                REPARSE_DATA_BUFFER reparseDataBuffer = new REPARSE_DATA_BUFFER();
+                REPARSE_DATA_BUFFER_JUNCTION reparseDataBuffer = new REPARSE_DATA_BUFFER_JUNCTION();
 
                 reparseDataBuffer.ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
                 reparseDataBuffer.ReparseDataLength = (ushort)(targetDirBytes.Length + 12);
@@ -301,34 +362,24 @@ namespace de.intronik.backup
             }
         }
 
-
-        /// <summary>
-        /// Creates a Symbolic Link to the given tagret
-        /// </summary>
-        /// <remarks>
-        /// Only works on NTFS.
-        /// </remarks>
-        /// <param name="junctionPoint">The junction point path</param>
-        /// <param name="targetDir">The target directory</param>
-        /// <param name="overwrite">If true overwrites an existing reparse point or empty directory</param>
-        /// <exception cref="IOException">Thrown when the junction point could not be created or when
-        /// an existing directory was found and <paramref name="overwrite" /> if false</exception>
-        public static void CreateSymbolicLink(string junctionPoint, string targetDir, bool overwrite)
+        public static void CreateSymbolLink(string symbolicLink, string targetDir, bool relative = true)
         {
-            using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Write))
+            using (SafeFileHandle handle = OpenReparsePoint(symbolicLink, FileAccess.Write))
             {
-                byte[] targetDirBytes = Encoding.Unicode.GetBytes(NonInterpretedPathPrefix + Path.GetFullPath(targetDir));
+                byte[] targetDirBytes = Encoding.Unicode.GetBytes(targetDir);
 
-                REPARSE_DATA_BUFFER reparseDataBuffer = new REPARSE_DATA_BUFFER();
+                REPARSE_DATA_BUFFER_SYMLINK reparseDataBuffer = new REPARSE_DATA_BUFFER_SYMLINK();
 
-                reparseDataBuffer.ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
-                reparseDataBuffer.ReparseDataLength = (ushort)(targetDirBytes.Length + 12);
-                reparseDataBuffer.SubstituteNameOffset = 0;
-                reparseDataBuffer.SubstituteNameLength = (ushort)targetDirBytes.Length;
-                reparseDataBuffer.PrintNameOffset = (ushort)(targetDirBytes.Length + 2);
-                reparseDataBuffer.PrintNameLength = 0;
+                reparseDataBuffer.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+                reparseDataBuffer.ReparseDataLength = (ushort)(2 * targetDirBytes.Length + 12);
+                reparseDataBuffer.PrintNameOffset = 0;
+                reparseDataBuffer.PrintNameLength = 0;// (ushort)(targetDirBytes.Length);
+                reparseDataBuffer.SubstituteNameOffset = reparseDataBuffer.PrintNameLength;
+                reparseDataBuffer.SubstituteNameLength = reparseDataBuffer.PrintNameLength;
                 reparseDataBuffer.PathBuffer = new byte[0x3ff0];
-                Array.Copy(targetDirBytes, reparseDataBuffer.PathBuffer, targetDirBytes.Length);
+                reparseDataBuffer.Flags = relative ? (uint)0x000000001 : (uint)0x000000000;
+                Array.Copy(targetDirBytes, 0, reparseDataBuffer.PathBuffer, reparseDataBuffer.PrintNameOffset, reparseDataBuffer.PrintNameLength);
+                Array.Copy(targetDirBytes, 0, reparseDataBuffer.PathBuffer, reparseDataBuffer.SubstituteNameOffset, reparseDataBuffer.SubstituteNameLength);
 
                 int inBufferSize = Marshal.SizeOf(reparseDataBuffer);
                 IntPtr inBuffer = Marshal.AllocHGlobal(inBufferSize);
@@ -342,7 +393,7 @@ namespace de.intronik.backup
                         inBuffer, targetDirBytes.Length + 20, IntPtr.Zero, 0, out bytesReturned, IntPtr.Zero);
 
                     if (!result)
-                        ThrowLastWin32Error("Unable to create junction point.");
+                        ThrowLastWin32Error("Unable to create symlink point.");
                 }
                 finally
                 {
@@ -370,7 +421,7 @@ namespace de.intronik.backup
 
             using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Write))
             {
-                REPARSE_DATA_BUFFER reparseDataBuffer = new REPARSE_DATA_BUFFER();
+                REPARSE_DATA_BUFFER_JUNCTION reparseDataBuffer = new REPARSE_DATA_BUFFER_JUNCTION();
 
                 reparseDataBuffer.ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
                 reparseDataBuffer.ReparseDataLength = 0;
@@ -458,7 +509,7 @@ namespace de.intronik.backup
 
         private static string InternalGetTarget(SafeFileHandle handle, UInt32 expectedReparseType = 0)
         {
-            int outBufferSize = Marshal.SizeOf(typeof(REPARSE_DATA_BUFFER));
+            int outBufferSize = Marshal.SizeOf(typeof(REPARSE_DATA_BUFFER_JUNCTION));
             IntPtr outBuffer = Marshal.AllocHGlobal(outBufferSize);
 
             try
@@ -476,19 +527,19 @@ namespace de.intronik.backup
                     ThrowLastWin32Error("Unable to get information about junction point.");
                 }
 
-                REPARSE_DATA_BUFFER reparseDataBuffer = (REPARSE_DATA_BUFFER)
-                    Marshal.PtrToStructure(outBuffer, typeof(REPARSE_DATA_BUFFER));
+                var reparseDataBufferJunction = (REPARSE_DATA_BUFFER_JUNCTION)Marshal.PtrToStructure(outBuffer, typeof(REPARSE_DATA_BUFFER_JUNCTION));
+                var reparseDataBufferSymlink = (REPARSE_DATA_BUFFER_SYMLINK)Marshal.PtrToStructure(outBuffer, typeof(REPARSE_DATA_BUFFER_SYMLINK));
 
-                if (expectedReparseType != 0 && reparseDataBuffer.ReparseTag != expectedReparseType)
+                if (expectedReparseType != 0 && reparseDataBufferJunction.ReparseTag != expectedReparseType)
                     return null;
 
                 // SYMBOLIK LINKS START 4 BYTES LATER
                 // see: http://msdn.microsoft.com/en-us/library/windows/hardware/ff552012(v=vs.85).aspx
-                if (reparseDataBuffer.ReparseTag == IO_REPARSE_TAG_SYMLINK)
-                    reparseDataBuffer.SubstituteNameOffset += 4;
+                if (reparseDataBufferSymlink.ReparseTag == IO_REPARSE_TAG_SYMLINK)
+                    return Encoding.Unicode.GetString(reparseDataBufferSymlink.PathBuffer, reparseDataBufferSymlink.SubstituteNameOffset, reparseDataBufferSymlink.SubstituteNameLength);
 
-                string targetDir = Encoding.Unicode.GetString(reparseDataBuffer.PathBuffer,
-                    reparseDataBuffer.SubstituteNameOffset, reparseDataBuffer.SubstituteNameLength);
+                string targetDir = Encoding.Unicode.GetString(reparseDataBufferJunction.PathBuffer,
+                    reparseDataBufferJunction.SubstituteNameOffset, reparseDataBufferJunction.SubstituteNameLength);
 
                 if (targetDir.StartsWith(NonInterpretedPathPrefix))
                     targetDir = targetDir.Substring(NonInterpretedPathPrefix.Length);
@@ -516,5 +567,17 @@ namespace de.intronik.backup
             throw new IOException(message, Marshal.GetExceptionForHR(Marshal.GetHRForLastWin32Error()));
         }
         #endregion JunctionPoint
+
+        /// <summary>
+        /// Returns true, when the program has admin priveleges
+        /// </summary>
+        /// <returns></returns>
+        public static bool HasAdministratorPrivileges()
+        {
+            WindowsIdentity id = WindowsIdentity.GetCurrent();
+            WindowsPrincipal principal = new WindowsPrincipal(id);
+            return principal.IsInRole(WindowsBuiltInRole.Administrator);
+        }
+
     }
 }
