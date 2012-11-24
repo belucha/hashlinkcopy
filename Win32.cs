@@ -8,7 +8,7 @@ using System.Runtime.InteropServices;
 using FILETIME = System.Runtime.InteropServices.ComTypes.FILETIME;
 using SafeFileHandle = Microsoft.Win32.SafeHandles.SafeFileHandle;
 
-namespace de.intronik.hashcopy
+namespace de.intronik.backup
 {
     /// <summary>
     /// Some helpers to acces the special NTFS functions
@@ -92,6 +92,9 @@ namespace de.intronik.hashcopy
 
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         static extern bool GetFileInformationByHandle(SafeFileHandle handle, out BY_HANDLE_FILE_INFORMATION lpFileInformation);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        static extern UInt32 GetFinalPathNameByHandle(SafeFileHandle handle, out string lpszFilePath, UInt32 cchFilePath, UInt32 dwFlags);
         #endregion
 
         public static int GetFileLinkCount(string filepath)
@@ -151,6 +154,11 @@ namespace de.intronik.hashcopy
         /// Reparse point tag used to identify mount points and junction points.
         /// </summary>
         private const uint IO_REPARSE_TAG_MOUNT_POINT = 0xA0000003;
+
+        /// <summary>
+        /// Used for symbolic link support. See section 2.1.2.4.
+        /// </summary>
+        private const uint IO_REPARSE_TAG_SYMLINK = 0xA000000C;
 
         [Flags]
         private enum EFileAttributes : uint
@@ -256,7 +264,57 @@ namespace de.intronik.hashcopy
         /// <exception cref="IOException">Thrown when the junction point could not be created or when
         /// an existing directory was found and <paramref name="overwrite" /> if false</exception>
         public static void CreateJunction(string junctionPoint, string targetDir, bool overwrite)
-        {            
+        {
+            using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Write))
+            {
+                byte[] targetDirBytes = Encoding.Unicode.GetBytes(NonInterpretedPathPrefix + Path.GetFullPath(targetDir));
+
+                REPARSE_DATA_BUFFER reparseDataBuffer = new REPARSE_DATA_BUFFER();
+
+                reparseDataBuffer.ReparseTag = IO_REPARSE_TAG_MOUNT_POINT;
+                reparseDataBuffer.ReparseDataLength = (ushort)(targetDirBytes.Length + 12);
+                reparseDataBuffer.SubstituteNameOffset = 0;
+                reparseDataBuffer.SubstituteNameLength = (ushort)targetDirBytes.Length;
+                reparseDataBuffer.PrintNameOffset = (ushort)(targetDirBytes.Length + 2);
+                reparseDataBuffer.PrintNameLength = 0;
+                reparseDataBuffer.PathBuffer = new byte[0x3ff0];
+                Array.Copy(targetDirBytes, reparseDataBuffer.PathBuffer, targetDirBytes.Length);
+
+                int inBufferSize = Marshal.SizeOf(reparseDataBuffer);
+                IntPtr inBuffer = Marshal.AllocHGlobal(inBufferSize);
+
+                try
+                {
+                    Marshal.StructureToPtr(reparseDataBuffer, inBuffer, false);
+
+                    int bytesReturned;
+                    bool result = DeviceIoControl(handle.DangerousGetHandle(), FSCTL_SET_REPARSE_POINT,
+                        inBuffer, targetDirBytes.Length + 20, IntPtr.Zero, 0, out bytesReturned, IntPtr.Zero);
+
+                    if (!result)
+                        ThrowLastWin32Error("Unable to create junction point.");
+                }
+                finally
+                {
+                    Marshal.FreeHGlobal(inBuffer);
+                }
+            }
+        }
+
+
+        /// <summary>
+        /// Creates a Symbolic Link to the given tagret
+        /// </summary>
+        /// <remarks>
+        /// Only works on NTFS.
+        /// </remarks>
+        /// <param name="junctionPoint">The junction point path</param>
+        /// <param name="targetDir">The target directory</param>
+        /// <param name="overwrite">If true overwrites an existing reparse point or empty directory</param>
+        /// <exception cref="IOException">Thrown when the junction point could not be created or when
+        /// an existing directory was found and <paramref name="overwrite" /> if false</exception>
+        public static void CreateSymbolicLink(string junctionPoint, string targetDir, bool overwrite)
+        {
             using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Write))
             {
                 byte[] targetDirBytes = Encoding.Unicode.GetBytes(NonInterpretedPathPrefix + Path.GetFullPath(targetDir));
@@ -307,7 +365,6 @@ namespace de.intronik.hashcopy
             {
                 if (File.Exists(junctionPoint))
                     throw new IOException("Path is not a junction point.");
-
                 return;
             }
 
@@ -379,17 +436,27 @@ namespace de.intronik.hashcopy
         /// exist, is invalid, is not a junction point, or some other error occurs</exception>
         public static string GetJunctionTarget(string junctionPoint)
         {
-            using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Read))
+            try
             {
-                string target = InternalGetTarget(handle);
-                if (target == null)
-                    throw new IOException("Path is not a junction point.");
+                using (SafeFileHandle handle = OpenReparsePoint(junctionPoint, FileAccess.Read))
+                {
+                    string target = InternalGetTarget(handle); // IO_REPARSE_TAG_MOUNT_POINT
+                    if (target == null)
+                        //throw new IOException("Path is not a junction point.");
+                        return null;
+                    if (target.Length > 1 && (target[0] == Path.DirectorySeparatorChar || target[1] == Path.AltDirectorySeparatorChar))
+                        return Path.Combine(Path.GetPathRoot(junctionPoint), target.Substring(1));
+                    return target;
 
-                return target;
+                }
+            }
+            catch
+            {
+                return null;
             }
         }
 
-        private static string InternalGetTarget(SafeFileHandle handle)
+        private static string InternalGetTarget(SafeFileHandle handle, UInt32 expectedReparseType = 0)
         {
             int outBufferSize = Marshal.SizeOf(typeof(REPARSE_DATA_BUFFER));
             IntPtr outBuffer = Marshal.AllocHGlobal(outBufferSize);
@@ -412,8 +479,13 @@ namespace de.intronik.hashcopy
                 REPARSE_DATA_BUFFER reparseDataBuffer = (REPARSE_DATA_BUFFER)
                     Marshal.PtrToStructure(outBuffer, typeof(REPARSE_DATA_BUFFER));
 
-                if (reparseDataBuffer.ReparseTag != IO_REPARSE_TAG_MOUNT_POINT)
+                if (expectedReparseType != 0 && reparseDataBuffer.ReparseTag != expectedReparseType)
                     return null;
+
+                // SYMBOLIK LINKS START 4 BYTES LATER
+                // see: http://msdn.microsoft.com/en-us/library/windows/hardware/ff552012(v=vs.85).aspx
+                if (reparseDataBuffer.ReparseTag == IO_REPARSE_TAG_SYMLINK)
+                    reparseDataBuffer.SubstituteNameOffset += 4;
 
                 string targetDir = Encoding.Unicode.GetString(reparseDataBuffer.PathBuffer,
                     reparseDataBuffer.SubstituteNameOffset, reparseDataBuffer.SubstituteNameLength);

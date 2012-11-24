@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual C# Express 2010
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "de.intronik.hashcopy", "de.intronik.hashcopy.csproj", "{43C527C7-AC99-4899-813D-3EE189D73CA9}"
+# Visual Studio 2010
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "backuptool", "backuptool.csproj", "{43C527C7-AC99-4899-813D-3EE189D73CA9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

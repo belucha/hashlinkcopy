@@ -5,31 +5,30 @@ using System.Linq;
 using System.Text;
 using System.Security.Cryptography;
 
-namespace de.intronik.hashcopy
+namespace de.intronik.backup
 {
     /// <summary>
-    /// Provides the SHA1 info of a file, either from the cached value in the ADS stream
-    /// or by calculating the data.
-    /// </summary>    
-    public class HashInfo
+    /// HashEntry for a FileInfo object
+    /// the hash is either calculated or read from an ADS data stream
+    /// </summary>
+    public class FileHashEntry : FileSystemHashEntry
     {
         const string STREAM = @"de.Intronik.HashInfo"; // name of the ADS Stream used to store the cached hashed info
         const int SIZE = 8 + 8 + 20;
-        public byte[] Hash { get; private set; }
-        public DateTime LastWriteTimeUtc { get { return this.SourceFileInfo.LastWriteTimeUtc; } }
-        public Int64 Length { get { return this.SourceFileInfo.Length; } }
-        public static long CacheLimit = 4 << 10;
+        const long CacheLimit = 4 << 10;
 
-        public FileInfo SourceFileInfo { get; private set; }
 
-        public HashInfo(FileInfo info, HashAlgorithm hashProvider)
+        public DateTime LastWriteTimeUtc { get { return ((FileInfo)this.Info).LastWriteTimeUtc; } }
+        public Int64 Length { get { return ((FileInfo)this.Info).Length; } }
+
+        public FileHashEntry(FileInfo info, HashAlgorithm hashProvider)
+            : base(info)
         {
             // check if info is still valid
-            this.SourceFileInfo = info;
             DateTime cachedLastWriteTime;
             long cachedLength;
             byte[] hash;
-            if (this.Length > HashInfo.CacheLimit)
+            if (this.Length > CacheLimit)
                 ReadHashInfo(info.FullName, out cachedLastWriteTime, out cachedLength, out hash);
             else
             {
@@ -41,7 +40,7 @@ namespace de.intronik.hashcopy
             {
                 using (var inputStream = File.OpenRead(info.FullName))
                     this.Hash = hash = hashProvider.ComputeHash(inputStream);
-                if (this.Length > HashInfo.CacheLimit)
+                if (this.Length > CacheLimit)
                     this.SaveHashInfo();
             }
             else
@@ -79,10 +78,10 @@ namespace de.intronik.hashcopy
             try
             {
                 // remove RO attribute
-                var ro = (this.SourceFileInfo.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly;
+                var ro = (this.Info.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly;
                 if (ro)
-                    File.SetAttributes(this.SourceFileInfo.FullName, SourceFileInfo.Attributes & (~FileAttributes.ReadOnly));
-                using (var w = new BinaryWriter(new FileStream(Win32.CreateFile(this.SourceFileInfo.FullName + ":" + STREAM,
+                    File.SetAttributes(this.Info.FullName, Info.Attributes & (~FileAttributes.ReadOnly));
+                using (var w = new BinaryWriter(new FileStream(Win32.CreateFile(this.Info.FullName + ":" + STREAM,
                     FileAccess.Write, FileShare.Write, IntPtr.Zero,
                     FileMode.Create, 0, IntPtr.Zero), FileAccess.Write)))
                 {
@@ -91,10 +90,10 @@ namespace de.intronik.hashcopy
                     w.Write(this.Hash);
                 }
                 // fix last write time, since the ADS write changes the value
-                File.SetLastWriteTimeUtc(this.SourceFileInfo.FullName, this.LastWriteTimeUtc);
+                File.SetLastWriteTimeUtc(this.Info.FullName, this.LastWriteTimeUtc);
                 // restore RO attribute
                 if (ro)
-                    File.SetAttributes(this.SourceFileInfo.FullName, this.SourceFileInfo.Attributes);
+                    File.SetAttributes(this.Info.FullName, this.Info.Attributes);
             }
             catch (Exception)
             {

@@ -8,8 +8,8 @@
     <ProjectGuid>{43C527C7-AC99-4899-813D-3EE189D73CA9}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>de.intronik.hashcopy</RootNamespace>
-    <AssemblyName>hashcopy</AssemblyName>
+    <RootNamespace>de.intronik.backup</RootNamespace>
+    <AssemblyName>bt</AssemblyName>
     <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <TargetFrameworkProfile>Client</TargetFrameworkProfile>
     <FileAlignment>512</FileAlignment>
@@ -64,7 +64,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="HashInfo.cs" />
+    <Compile Include="DirectoryHashEntry.cs" />
+    <Compile Include="FileSystemHashEntry.cs" />
+    <Compile Include="HashCleanup.cs" />
+    <Compile Include="HashEntry.cs" />
+    <Compile Include="FileHashEntry.cs" />
+    <Compile Include="HashLinkCopy.cs" />
+    <Compile Include="PathHashEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Win32.cs" />
