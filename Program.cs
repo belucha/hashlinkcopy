@@ -149,6 +149,7 @@ namespace de.intronik.backup
             LinkCreation,
             DirectoryLinkCreation,
             FileLinkCreation,
+            Junction,
         }
 
         static int aMain(string[] args)
@@ -217,6 +218,12 @@ namespace de.intronik.backup
                                 var res = (LinkCreation)Enum.Parse(typeof(LinkCreation), kvp.Value, true);
                                 hashCopy.FileLinkCreation = (FileLinkCreation)(int)res;
                                 hashCopy.DirectoryLinkCreation = (DirectoryLinkCreation)(int)res;
+                                break;
+                            case Option.Junction:
+                                if (kvp.Value != null)
+                                    throw new InvalidOperationException("No value allowed for this option!");
+                                hashCopy.FileLinkCreation = FileLinkCreation.Hardlink;
+                                hashCopy.DirectoryLinkCreation = DirectoryLinkCreation.Junction;
                                 break;
                             default:
                                 throw new ArgumentOutOfRangeException(String.Format("Unknown option {0}!", kvp.Key));

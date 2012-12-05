@@ -1,4 +1,6 @@
-﻿using System;
+﻿using System.Security.Principal;
+using System.Security.AccessControl;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -287,7 +289,12 @@ namespace de.intronik.backup
 
         void PrepareHashDirectory()
         {
-            Directory.CreateDirectory(this.HashDir);
+            // create new hash directory, with default attributes
+            if (!Directory.Exists(this.HashDir))
+            {
+                var di = Directory.CreateDirectory(this.HashDir);
+                di.Attributes = di.Attributes | FileAttributes.Hidden | FileAttributes.Compressed | FileAttributes.NotContentIndexed;
+            }
             // make sure all hash directories exist!
             for (var i = 0; i < (1 << 12); i++)
             {
