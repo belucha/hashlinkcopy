@@ -35,15 +35,22 @@ namespace de.intronik.backup
 
         static void Print(int level, bool newLine, string input, params object[] args)
         {
-            var w = Console.BufferWidth;
-            var text = String.Format("".PadLeft(level) + input, args);
-            if (text.Length >= w)
-                text = text.Remove(level + 4, text.Length - w - level - 8).Insert(level + 4, "...");
-            Console.CursorLeft = 0;
-            if (newLine)
-                Console.WriteLine(text.PadRight(w - 1));
-            else
-                Console.Write(text.PadRight(w - 1));
+            try
+            {
+                var w = Console.BufferWidth;
+                var text = String.Format("".PadLeft(level) + input, args);
+                if (text.Length >= w)
+                    text = text.Remove(level + 4, text.Length - w + 8).Insert(level + 4, "...");
+                Console.CursorLeft = 0;
+                if (newLine)
+                    Console.WriteLine(text.PadRight(w - 1));
+                else
+                    Console.Write(text.PadRight(w - 1));
+            }
+            catch
+            {
+                // ignore
+            }
         }
 
         static void hashLinkCopy_Action(object sender, HashLinkActionEventArgs e)
