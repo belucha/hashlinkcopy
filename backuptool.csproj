@@ -65,6 +65,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DirectoryHashEntry.cs" />
+    <Compile Include="FileRoutines.cs" />
     <Compile Include="FileSystemHashEntry.cs" />
     <Compile Include="HashCleanup.cs" />
     <Compile Include="HashEntry.cs" />
@@ -80,6 +81,7 @@
   <ItemGroup>
     <None Include="App.manifest" />
     <None Include="Backup.cmd" />
+    <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">

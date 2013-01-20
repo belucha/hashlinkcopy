@@ -30,32 +30,12 @@ namespace de.intronik.backup
         static void hashLinkCopy_Error(object sender, HashLinkErrorEventArgs e)
         {
             ErrorCount++;
-            Console.WriteLine("Error {0} on file \"{1}\", Message: \"{2}\"", e.Error.GetType().Name, e.Info.FullName, e.Error.Message);
-        }
-
-        static void Print(int level, bool newLine, string input, params object[] args)
-        {
-            try
-            {
-                var w = Console.BufferWidth;
-                var text = String.Format("".PadLeft(level) + input, args);
-                if (text.Length >= w)
-                    text = text.Remove(level + 4, text.Length - w + 8).Insert(level + 4, "...");
-                Console.CursorLeft = 0;
-                if (newLine)
-                    Console.WriteLine(text.PadRight(w - 1));
-                else
-                    Console.Write(text.PadRight(w - 1));
-            }
-            catch
-            {
-                // ignore
-            }
+            Console.WriteLine("\"{1}\": {0}, Message: \"{2}\"", e.Error.GetType().Name, e.Info.FullName, e.Error.Message);
         }
 
         static void hashLinkCopy_Action(object sender, HashLinkActionEventArgs e)
         {
-#if DEBUG
+#if DEBUG && false
             // just to make display debug slower
             Thread.Sleep(500);
 #endif
@@ -63,7 +43,7 @@ namespace de.intronik.backup
             if (excludeList.Any(exclude => String.Compare(e.Info.Name, exclude, true) == 0))
             {
                 ExcludedCount++;
-                Print(e.Level, false, "{0} (excluded)", e.Info.FullName);
+                Console.WriteLine("{0} (excluded)", e.Info.FullName);
                 e.Cancel = true;
             }
             else
@@ -87,21 +67,20 @@ namespace de.intronik.backup
                         break;
                 }
                 if (e.Action == HashLinkAction.EnterSourceDirectory && e.Level <= DisplayLimit)
-                    Print(e.Level, true, e.Info.FullName);
-                else
-                    Print(e.Level, false, "{0} ({1})", e.Info.FullName, e.Action);
+                    Console.WriteLine(e.Info.FullName);
             }
-            Console.Title = String.Format("BackupTool [dirs:{0}/files:{1}/copied:{2}/linked folders:{3}/linked files:{4}/excluded:{5}/Errors:{6}]", DirectoryCount, FileCount, CopyCount, LinkDirectoryCount, LinkFileCount, ExcludedCount, ErrorCount);
+            Console.Title = e.ToString();
         }
 
         static int Help()
         {
             var exeName = Path.GetFileName(Application.ExecutablePath);
-            Console.WriteLine("{0} v{1} - Copyright © 2012, Daniel Gross, daniel@belucha.de", exeName, Application.ProductVersion);
+            Console.WriteLine("{0} v{1} - Copyright © 2013, Daniel Gross, daniel@belucha.de", exeName, Application.ProductVersion);
             Console.WriteLine("Symbolic and Hard link based backup tool using SHA1 and ADS for efficent performance!");
             Console.WriteLine();
             Console.WriteLine("Usage:");
-            Console.WriteLine("{0} SourcePath [DestinationPath]", exeName);
+            Console.WriteLine("{0} SourceFolder [SourceFolder2 [SourceFolderN]] DestinationPath", exeName);
+            Console.WriteLine("{0} @FolderListFile.txt DestinationPath", exeName);
             Console.WriteLine();
             Console.WriteLine("Default destination is the current folder + *");
             Console.WriteLine("\t\tA star '*' in the destination folder will be replaced by the current date in the form yyyy-mm-dd");
@@ -157,6 +136,7 @@ namespace de.intronik.backup
             DirectoryLinkCreation,
             FileLinkCreation,
             Junction,
+            DisplayLimit,
         }
 
         static int aMain(string[] args)
@@ -204,6 +184,10 @@ namespace de.intronik.backup
                             case Option.HashDir:
                                 hashDir = kvp.Value;
                                 break;
+                            case Option.DisplayLimit:
+                                DisplayLimit = String.IsNullOrEmpty(kvp.Value) ? 0 : byte.Parse(kvp.Value);
+                                if (DisplayLimit == 0) DisplayLimit = int.MaxValue;
+                                break;
                             case Option.EnableDelete:
                                 if (kvp.Value != null)
                                     throw new InvalidOperationException("No value allowed for this option!");
@@ -247,8 +231,8 @@ namespace de.intronik.backup
                     case Operation.Clean:
                         break;
                     case Operation.Backup:
-                        if (parameters.Length < 1 || parameters.Length > 2)
-                            throw new ArgumentOutOfRangeException("Invalid numer of parameters!\nAt least one parameter, but a maximum of two parameters are possible!");
+                        if (parameters.Length < 2)
+                            throw new ArgumentOutOfRangeException("Invalid numer of parameters!\nAt least one source and one destination folder is required!");
                         break;
                 }
             }
@@ -269,27 +253,36 @@ namespace de.intronik.backup
                         {
                             hashCopy.Action += hashLinkCopy_Action;
                             hashCopy.Error += hashLinkCopy_Error;
+                            // destination folder
+                            hashCopy.DestinationDirectory = parameters.Last().Replace("*", DateTime.Now.ToString("yyyy-MM-dd"));
+                            // set hash folder
                             if (!String.IsNullOrEmpty(hashDir))
                                 hashCopy.HashDir = hashDir;
                             // source directory
-                            var sourceDirectory = Path.GetFullPath(parameters[0]);
-                            print("Source path", sourceDirectory);
-                            // get the destination folder
-                            var destinationDirectory = parameters.Length >= 2 ? parameters[1] : Path.Combine(Directory.GetCurrentDirectory(), "*");
-                            destinationDirectory = Path.GetFullPath(destinationDirectory.Replace("*", DateTime.Now.ToString("yyyy-MM-dd")));
-                            print("Desitination path", destinationDirectory);
+                            print("Desitination path", hashCopy.DestinationDirectory);
+                            print("Hashfolder", hashCopy.HashDir);
                             // RUN
-                            hashCopy.Copy(sourceDirectory, destinationDirectory);
+                            string[] sourceList = parameters.Take(parameters.Length - 1).ToArray();
+                            if (sourceList.Length == 1 && sourceList[0].StartsWith("@") && File.Exists(sourceList[0].Substring(1)))
+                                sourceList = File
+                                    .ReadAllLines(sourceList[0].Substring(1))
+                                    .Select(line => line.Trim())
+                                    .Where(line => line.Length > 0 && !line.StartsWith(";"))
+                                    .ToArray();
+                            var start = DateTime.Now;
+                            hashCopy.CopyFolders(sourceList);
+                            var end = DateTime.Now;
                             // Statistics
-                            print("Start", hashCopy.Start);
-                            print("End", hashCopy.End);
-                            print("Duration", hashCopy.Elapsed);
+                            print("Start", start);
+                            print("End", end);
+                            print("Duration", start.Subtract(end));
                             print("Directories", DirectoryCount);
                             print("Files", FileCount);
                             print("Linked Files", LinkFileCount);
                             print("Linked Folders", LinkDirectoryCount);
                             print("Copied Files", CopyCount);
                             print("Copied Files", ExcludedCount);
+                            print("Errors", ErrorCount);
                         }
                         break;
                     case Operation.Clean:
@@ -308,7 +301,7 @@ namespace de.intronik.backup
                             print("Enabled delete", c.EnableDelete ? "yes" : "no");
                             foreach (var dir in parameters)
                             {
-                                Print(0, true, "Scanning: \"{0}\"", dir);
+                                Console.WriteLine("Scanning: \"{0}\"", dir);
                                 c.CheckDirectories(dir);
                             }
                             print("Used hashs", c.UsedHashCount);
