@@ -7,8 +7,19 @@ using System.Security.Cryptography;
 
 namespace de.intronik.backup
 {
-    public class HashLinkCopy
+    [Description("Creates a backup of all source folders\nLine two\nTodo")]
+    public class BackupOperation : HashOperation
     {
+        const string TimeStampFormatString = @"yyyy-MM-dd_HH_mm";
+
+        enum HashLinkAction
+        {
+            EnterSourceDirectory,
+            ProcessSourceFile,
+            CopyFile,
+            LinkFile,
+            LinkDirectory,
+        }
         #region private fields
         delegate void CreateLinkDelegate(string linkName, FileSystemHashEntry target, int level);
         HashAlgorithm hashAlgorithm;
@@ -16,19 +27,22 @@ namespace de.intronik.backup
         string _destinationDirectory;
         CreateLinkDelegate createFileLink;
         CreateLinkDelegate createDirectoryLink;
+        long FileCount;
+        long DirectoryCount;
+        long CopyCount;
+        long LinkFileCount;
+        long LinkDirectoryCount;
+        long ExcludedCount;
+        string[] excludeList = new string[0];
         #endregion
 
         #region public methods
-        public HashLinkCopy()
+        public BackupOperation()
         {
             this.hashAlgorithm = SHA1.Create();
             this.DirectoryLinkCreation = backup.DirectoryLinkCreation.Symlink;
             this.FileLinkCreation = backup.FileLinkCreation.Symlink;
         }
-
-        public event EventHandler<HashLinkActionEventArgs> Action;
-        public event EventHandler<HashLinkErrorEventArgs> Error;
-
 
         public string DestinationDirectory
         {
@@ -120,7 +134,7 @@ namespace de.intronik.backup
             return new Tuple<DirectoryInfo, string>(info, alias);
         }
 
-        public void CopyFolders(string[] sourceFolders)
+        void CopyFolders(string[] sourceFolders)
         {
             if (string.IsNullOrEmpty(this.DestinationDirectory))
                 throw new InvalidOperationException("Destination folder is not set!");
@@ -132,7 +146,7 @@ namespace de.intronik.backup
             Console.WriteLine("Checking target directory: \"{0}\"", this.DestinationDirectory);
             if (Directory.Exists(this.DestinationDirectory))
             {
-                var ts = DateTime.Now.ToString("yyyy-MM-dd_HH_mm");
+                var ts = DateTime.Now.ToString(TimeStampFormatString);
                 Console.WriteLine("Warning target directory already exists! Trying to append current time stamp ({0})!", ts);
                 this.DestinationDirectory = Path.Combine(this.DestinationDirectory, ts);
                 if (Directory.Exists(DestinationDirectory))
@@ -155,7 +169,7 @@ namespace de.intronik.backup
                 Console.WriteLine("Linking \"{0}\"=>\"{1}\"...", decodedSourceFolderAndAlias.Item1.FullName, target);
                 if (Directory.Exists(target))
                 {
-                    OnHashLinkError(new HashLinkErrorEventArgs(decodedSourceFolderAndAlias.Item1, new InvalidOperationException("Target folder already exists!")));
+                    this.HandleError(decodedSourceFolderAndAlias.Item1, new InvalidOperationException("Target folder already exists!"));
                     continue;
                 }
                 var hashEntry = this.BuildHashEntry(decodedSourceFolderAndAlias.Item1, 1);
@@ -166,7 +180,7 @@ namespace de.intronik.backup
                     Console.WriteLine("Linking of \"{0}\"=>\"{1}\" completed", decodedSourceFolderAndAlias.Item1.FullName, target);
                 }
                 else
-                    OnHashLinkError(new HashLinkErrorEventArgs(decodedSourceFolderAndAlias.Item1, new ApplicationException(String.Format("Copy \"{0}\"=>\"{1}\" failed!", decodedSourceFolderAndAlias.Item1.FullName, target))));
+                    this.HandleError(decodedSourceFolderAndAlias.Item1, new ApplicationException(String.Format("Copy \"{0}\"=>\"{1}\" failed!", decodedSourceFolderAndAlias.Item1.FullName, target)));
             }
         }
         #endregion
@@ -304,16 +318,39 @@ namespace de.intronik.backup
 
         bool OnAction(HashLinkAction action, FileSystemInfo info, int level, string extendedInfo = null)
         {
-            if (this.Action == null) return false;
-            var e = new HashLinkActionEventArgs(info, level, action, extendedInfo);
-            this.Action(this, e);
-            return e.Cancel;
-        }
 
-        void OnHashLinkError(HashLinkErrorEventArgs e)
-        {
-            if (this.Error != null)
-                this.Error(this, e);
+            // checks if the entry is in the exclude list            
+            if (excludeList.Any(exclude => String.Compare(info.Name, exclude, true) == 0))
+            {
+                ExcludedCount++;
+                Output.WriteLine("{0} (excluded)", info.FullName);
+                return true;
+            }
+            else
+            {
+                switch (action)
+                {
+                    case HashLinkAction.EnterSourceDirectory:
+                        DirectoryCount++;
+                        break;
+                    case HashLinkAction.ProcessSourceFile:
+                        FileCount++;
+                        break;
+                    case HashLinkAction.CopyFile:
+                        CopyCount++;
+                        break;
+                    case HashLinkAction.LinkDirectory:
+                        LinkDirectoryCount++;
+                        break;
+                    case HashLinkAction.LinkFile:
+                        LinkFileCount++;
+                        break;
+                }
+                if (action == HashLinkAction.EnterSourceDirectory && level <= this.Tree)
+                    Output.WriteLine(info.FullName);
+            }
+            Console.Title = String.Format("{0}: \"{1}\"{2}", action, info.FullName, extendedInfo);
+            return false;
         }
 
         FileSystemHashEntry BuildHashEntry(FileSystemInfo fileSystemInfo, int level)
@@ -376,16 +413,61 @@ namespace de.intronik.backup
             }
             catch (IOException e)
             {
-                OnHashLinkError(new HashLinkErrorEventArgs(currentEntry, e));
+                this.HandleError(currentEntry, e);
                 return null;
             }
             catch (Win32Exception e)
             {
-                OnHashLinkError(new HashLinkErrorEventArgs(currentEntry, e));
+                this.HandleError(currentEntry, e);
                 return null;
             }
         }
         #endregion
+
+        public override void PreRun()
+        {
+            base.PreRun();
+            print("Desitination path", DestinationDirectory);
+        }
+
+        protected override void PreHandleParameters()
+        {
+            if (this.Parameters.Length < 2)
+                throw new InvalidOperationException("At least two parameters are required!");
+            base.PreHandleParameters();
+            // destination folder
+            DestinationDirectory = Parameters.Last().Replace("*", DateTime.Now.ToString(TimeStampFormatString));
+            this.Parameters = Parameters.Take(Parameters.Length - 1).ToArray();
+        }
+
+        public override int Run()
+        {
+            // source directory
+            // RUN
+            var sourceList = Parameters;
+            if (sourceList.Length == 1 && sourceList[0].StartsWith("@") && File.Exists(sourceList[0].Substring(1)))
+                sourceList = File
+                    .ReadAllLines(sourceList[0].Substring(1))
+                    .Select(line => line.Trim())
+                    .Where(line => line.Length > 0 && !line.StartsWith(";"))
+                    .ToArray();
+            this.StartTime = DateTime.Now;
+            CopyFolders(sourceList);
+            this.EndTime = DateTime.Now;
+            return 0;
+        }
+
+        public override void ShowStatistics()
+        {
+            base.ShowStatistics();
+            print("Directories", DirectoryCount);
+            print("Files", FileCount);
+            print("Linked Files", LinkFileCount);
+            print("Linked Folders", LinkDirectoryCount);
+            print("Copied Files", CopyCount);
+            print("Copied Files", ExcludedCount);
+            print("Errors", ErrorCount);
+        }
     }
 
     public enum DirectoryLinkCreation
