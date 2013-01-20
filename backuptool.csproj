@@ -73,6 +73,7 @@
     <Compile Include="HashLinkCopy.cs" />
     <Compile Include="HashLinkActionEventArgs.cs" />
     <Compile Include="HashLinkErrorEventArgs.cs" />
+    <Compile Include="BaseOperation.cs" />
     <Compile Include="PathHashEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -81,7 +82,9 @@
   <ItemGroup>
     <None Include="App.manifest" />
     <None Include="Backup.cmd" />
-    <None Include="README.md" />
+    <None Include="README.md">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">

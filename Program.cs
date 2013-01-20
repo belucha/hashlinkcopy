@@ -18,7 +18,7 @@ namespace de.intronik.backup
         static long CopyCount;
         static long LinkFileCount;
         static long LinkDirectoryCount;
-        static int DisplayLimit = 3;
+        static int DisplayLimit = int.MinValue;
         static long ExcludedCount;
         static string[] excludeList = new string[0];
 
@@ -136,25 +136,7 @@ namespace de.intronik.backup
             DirectoryLinkCreation,
             FileLinkCreation,
             Junction,
-            DisplayLimit,
-        }
-
-        static int aMain(string[] args)
-        {
-            try
-            {
-                var s = Win32.GetJunctionTarget(@"d:\Projekte\Backup\2012-11-24\");
-                var symlink = @"D:\Temp\Hej";
-                var target = @"\Lyrics\";
-                Directory.CreateDirectory(symlink);
-                Win32.CreateSymbolLink(symlink, target, true);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-            Console.ReadLine();
-            return 0;
+            Tree,
         }
 
         static int Main(string[] args)
@@ -184,9 +166,13 @@ namespace de.intronik.backup
                             case Option.HashDir:
                                 hashDir = kvp.Value;
                                 break;
-                            case Option.DisplayLimit:
-                                DisplayLimit = String.IsNullOrEmpty(kvp.Value) ? 0 : byte.Parse(kvp.Value);
-                                if (DisplayLimit == 0) DisplayLimit = int.MaxValue;
+                            case Option.Tree:
+                                if (String.IsNullOrEmpty(kvp.Value) || String.Compare(kvp.Value, "Off", true) == 0 || String.Compare(kvp.Value, false.ToString(), true) == 0)
+                                    DisplayLimit = int.MinValue;
+                                else if (String.Compare(kvp.Value, "On", true) == 0 || String.Compare(kvp.Value, true.ToString(), true) == 0)
+                                    DisplayLimit = int.MaxValue;
+                                else
+                                    DisplayLimit = byte.Parse(kvp.Value);
                                 break;
                             case Option.EnableDelete:
                                 if (kvp.Value != null)
@@ -275,7 +261,7 @@ namespace de.intronik.backup
                             // Statistics
                             print("Start", start);
                             print("End", end);
-                            print("Duration", start.Subtract(end));
+                            print("Duration", end.Subtract(start));
                             print("Directories", DirectoryCount);
                             print("Files", FileCount);
                             print("Linked Files", LinkFileCount);

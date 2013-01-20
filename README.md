@@ -1,11 +1,92 @@
-hashlinkcopy
-============
-SHA1 and ntfs hardlink based backup program
+bt.exe - A high speed backup tool
+=================================
+The backup tool bt utilizes a combination of 
+- SHA1 based hash tree,
+- recursive symbolic links and
+- NTFS alternated data streams to 
+to efficently create full backup of very large file systems at an extremely fast speed,
+and with as little disk usage as possible.
 
-Release 2.4.0.0
----------------
-- multiple source files
-- improved display
-- copy progress
-- list file syntax implemented
+Features
+========
+- extremely fast, e.g. full backup of 750GB data in 2 million files and 60'000 folders in less than 45 minutes.
+- minimal number of write operations on the target drive, if the source tree did not change since the last backup,
+  only a single directory link is created.
+- data base free design
+- performance is independet from the number of files
+- memory utilization only scales with tree depth, not with the number of files or folders
+- files that have the same content are copied only once
+- very fast clean up
 
+Usage
+=====
+
+Backup
+------
+Syntax:
+	bt.exe SourceFolder1[:alias1] [SourceFolder2 [SourceFolderN]] TargetFolder
+	   or
+	bt.exe @Folders.txt TargetFolder
+	
+The file "Folders.txt" is utf8 encoded and each line corresponds to a source folder.
+
+If the target folder is already existing the current time stamp in the form "yyyy-MM-dd_HH_mm" 
+is automatically appended. For each source folder specified a symbolic link with folder name is
+created.
+
+Examples:
+	bt.exe C:\Users\Emmy C:\Users\Mark D:\Movies D:\Data F:\Backup
+	bt.exe @Folders.txt F:\Backup
+	
+If there are two source folders with the same name, e.g.
+	bt.exe C:\Users\Emmy\Documents\ C:\Users\Mark\Documents\ F:\Backup
+the backup tool would try to create two symbolic links with the "Documents" in the backup folder. 
+This will fail, after the first folder. The alias syntax allows to create separate names for each
+folder, e.g.
+	bt.exe C:\Users\Emmy\Documents\:EmmiesDocs C:\Users\Mark\Documents\:MarksDocs F:\Backup
+
+Clean
+-----
+   
+   
+Options
+-------   
+   
+Internals
+=========
+Motivation
+----------
+The need for a backup does not need to be explained. Also a full backup for each date is certainly 
+desireable, if the cost in space and of course time are low.
+
+There have been other programs namingly Luphino RsyncBackup that utilized advanced file system features
+(hard links) to achive this goal.
+However there where some major draw backs:
+1. Due to a not fully understood problem of the NTFS file system the backup becomes slower with every backup 
+   iteration, as the number of hard links on the target drive increases. Since every backup cycle needs to create
+   the same number of hard links and folders as the source folders. In my case every daily backup was adding about
+   2 million hard links to the backup drive. The initial 120min of a full backup, yielded in more than 8h time for
+   creating the hard links. This was the case after running about 100 full back ups. Using a profiler I found that
+   the Win32 function "CreateHardlink" was often stalled for about 60 seconds. The frequency of the stalling increased
+   as the target drive had more and more hard links.
+2. Even if nothing in the source tree changed, the number of file operations for a backup is equal to the number
+   of files plus folders in the source tree. Usually only small portions of the source tree are changed.
+3. The tool only creates hard links for files that are having the exact same name and path. If a large file
+   is moved to another folder, it will be copied to the backup drive again.
+4. If multiple files with the same content are found several times, they are copied to the backup drive multiple
+   times, even if their content is exactly the same.
+5. The efficent operation of the tool relies on a memory based dictionary that has been created during the previous
+   backup. Thus the memory utilization scales with the number of files to be backuped.
+
+
+Release notes
+=============
+- 2.5.0.0
+	* alias syntax is added
+	* special handling of single source folder
+	
+- 2.4.0.0
+	* multiple source files
+	* improved display
+	* copy progress
+	* list file syntax implemented

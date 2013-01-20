@@ -109,7 +109,18 @@ namespace de.intronik.backup
             }
         }
 
-        public void CopyFolders(IEnumerable<string> sourceFolders)
+        static Tuple<DirectoryInfo, string> DecodeSourceFolder(string folderString)
+        {
+            var splitted = folderString.Split(new char[] { '=', }, 2);
+            var newFolderString = splitted[0];
+            var alias = splitted.Length == 2 ? splitted[1] : "";
+            var info = new DirectoryInfo(newFolderString);
+            if (String.IsNullOrEmpty(alias))
+                alias = info.Name;
+            return new Tuple<DirectoryInfo, string>(info, alias);
+        }
+
+        public void CopyFolders(string[] sourceFolders)
         {
             if (string.IsNullOrEmpty(this.DestinationDirectory))
                 throw new InvalidOperationException("Destination folder is not set!");
@@ -118,7 +129,7 @@ namespace de.intronik.backup
             this.PrepareHashDirectory();
             Console.WriteLine("Hash folder preparation completed!");
             // prepare target directory
-            Console.WriteLine("Creating target directory: \"{0}\"", this.DestinationDirectory);
+            Console.WriteLine("Checking target directory: \"{0}\"", this.DestinationDirectory);
             if (Directory.Exists(this.DestinationDirectory))
             {
                 var ts = DateTime.Now.ToString("yyyy-MM-dd_HH_mm");
@@ -127,28 +138,35 @@ namespace de.intronik.backup
                 if (Directory.Exists(DestinationDirectory))
                     Console.WriteLine("Warning new target directory \"{0}\" also already exists! Trying to continue using this directory anyway!", this.DestinationDirectory);
             }
+            // do not create separate sub folder for a single source folder
+            string singleFolderDestinationDir = sourceFolders.Length == 1 ? this.DestinationDirectory : null;
+            if (sourceFolders.Length == 1)
+                this.DestinationDirectory = Path.GetFullPath(Path.Combine(this.DestinationDirectory, ".."));
+            // ensure root folder exists
+            Console.WriteLine("Creating target directory: \"{0}\"", this.DestinationDirectory);
             Directory.CreateDirectory(this.DestinationDirectory);
             // process source folders
-            foreach (var source in sourceFolders)
+            foreach (var sourceFolderAndAlias in sourceFolders)
             {
                 // start link generation in first directory level
-                var info = new DirectoryInfo(source);
-                var target = Path.Combine(this.DestinationDirectory, info.Name);
-                Console.WriteLine("Linking \"{0}\"=>\"{1}\"...", info.FullName, target);
+                var decodedSourceFolderAndAlias = DecodeSourceFolder(sourceFolderAndAlias);
+                var target = Path.Combine(this.DestinationDirectory, decodedSourceFolderAndAlias.Item2);
+                if (singleFolderDestinationDir != null) target = singleFolderDestinationDir;
+                Console.WriteLine("Linking \"{0}\"=>\"{1}\"...", decodedSourceFolderAndAlias.Item1.FullName, target);
                 if (Directory.Exists(target))
                 {
-                    OnHashLinkError(new HashLinkErrorEventArgs(info, new InvalidOperationException("Target folder already exists!")));
+                    OnHashLinkError(new HashLinkErrorEventArgs(decodedSourceFolderAndAlias.Item1, new InvalidOperationException("Target folder already exists!")));
                     continue;
                 }
-                var hashEntry = this.BuildHashEntry(info, 1);
+                var hashEntry = this.BuildHashEntry(decodedSourceFolderAndAlias.Item1, 1);
                 if (hashEntry != null)
                 {
-                    if (!OnAction(HashLinkAction.LinkDirectory, info, 0))
+                    if (!OnAction(HashLinkAction.LinkDirectory, decodedSourceFolderAndAlias.Item1, 0))
                         this.CreateLink(target, hashEntry, 0);
-                    Console.WriteLine("Linking of \"{0}\"=>\"{1}\" completed", info.FullName, target);
+                    Console.WriteLine("Linking of \"{0}\"=>\"{1}\" completed", decodedSourceFolderAndAlias.Item1.FullName, target);
                 }
                 else
-                    OnHashLinkError(new HashLinkErrorEventArgs(info, new ApplicationException(String.Format("Copy \"{0}\"=>\"{1}\" failed!", info.FullName, target))));
+                    OnHashLinkError(new HashLinkErrorEventArgs(decodedSourceFolderAndAlias.Item1, new ApplicationException(String.Format("Copy \"{0}\"=>\"{1}\" failed!", decodedSourceFolderAndAlias.Item1.FullName, target))));
             }
         }
         #endregion
