@@ -64,8 +64,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CommandAttribute.cs" />
     <Compile Include="HashOperation.cs" />
-    <Compile Include="HelpOperation.cs" />
+    <Compile Include="HelpCommand.cs" />
     <Compile Include="DirectoryHashEntry.cs" />
     <Compile Include="FileRoutines.cs" />
     <Compile Include="FileSystemHashEntry.cs" />
@@ -74,6 +75,8 @@
     <Compile Include="FileHashEntry.cs" />
     <Compile Include="BackupOperation.cs" />
     <Compile Include="BaseOperation.cs" />
+    <Compile Include="OptionAttribute.cs" />
+    <Compile Include="OptionParser.cs" />
     <Compile Include="PathHashEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

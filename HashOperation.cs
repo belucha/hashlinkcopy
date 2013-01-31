@@ -9,35 +9,68 @@ namespace de.intronik.backup
 {
     public abstract class HashOperation : BaseOperation
     {
-        public DateTime StartTime { get; protected set; }
-        public DateTime EndTime { get; protected set; }
-        public TimeSpan Duration { get { return this.EndTime.Subtract(this.StartTime); } }
-        public long ErrorCount { get; private set; }
-        [DefaultValue("")]
-        public string HashFolder { get; set; }
 
-        [Description("Number of directory levels to print")]
-        [DefaultValue(0)]
-        public uint Tree { get; set; }
+        public HashOperation()
+        {
+            MaxLevel = 2;
+        }
+
+        string _hashDir;
+
+        protected string GetFullHashPath(HashEntry entry, bool tempfolder = false) { return this._hashDir + entry.ToString(tempfolder); }
+
+        protected void PrepareHashDirectory()
+        {
+            // create new hash directory, with default attributes
+            if (!Directory.Exists(this.HashFolder))
+            {
+                var di = Directory.CreateDirectory(this.HashFolder);
+                di.Attributes = di.Attributes | FileAttributes.Hidden | FileAttributes.Compressed | FileAttributes.NotContentIndexed;
+            }
+            // make sure all hash directories exist!
+            for (var i = 0; i < (1 << 12); i++)
+            {
+                Directory.CreateDirectory(Path.Combine(this.HashFolder, "f", i.ToString("X3")));
+                Directory.CreateDirectory(Path.Combine(this.HashFolder, "d", i.ToString("X3")));
+            }
+            // delete temp directory content
+            var tempDir = Path.Combine(this.HashFolder, "t");
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, true);
+            // recreate temp directory
+            Directory.CreateDirectory(Path.Combine(this.HashFolder, "t"));
+        }
+
+        [Option(ShortDescription = "HashFolder", ValueText = "FolderName", LongDescription = "Location of the hash folder", DefaultValue = "\"\\Hash\"\\ on the target drive")]
+        public string HashFolder
+        {
+            get { return this._hashDir; }
+            set
+            {
+                if (String.IsNullOrEmpty(value))
+                    throw new ArgumentNullException();
+                this._hashDir = Path.GetFullPath(value);
+                var c = _hashDir.LastOrDefault();
+                if (c != Path.DirectorySeparatorChar && c != Path.AltDirectorySeparatorChar)
+                    this._hashDir = String.Format("{0}{1}", _hashDir, Path.DirectorySeparatorChar);
+            }
+        }
+
+        [Option(Name = "Level", ShortDescription = "Number of directory levels to print")]
+        public uint MaxLevel { get; set; }
+
+        protected UInt64 ErrorCount = 0;
 
         protected virtual void HandleError(FileSystemInfo info, Exception exception)
         {
-            unchecked { this.ErrorCount++; }
+            this.ErrorCount++;
             Console.WriteLine("\"{1}\": {0}, Message: \"{2}\"", exception.GetType().Name, info.FullName, exception.Message);
         }
 
-        public override void PreRun()
-        {
-            base.PreRun();
-            print("Hash dir", this.HashFolder);
-        }
-        
+
         public override void ShowStatistics()
         {
             base.ShowStatistics();
-            print("Start", this.StartTime);
-            print("End", this.EndTime);
-            print("Duration", this.EndTime.Subtract(this.StartTime));
             print("ErrorCount", this.ErrorCount);
         }
     }

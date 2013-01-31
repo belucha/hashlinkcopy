@@ -14,29 +14,27 @@ namespace de.intronik.backup
     {
         static int Main(string[] args)
         {
+            int errorCode = 0;
             try
             {
-                Console.WriteLine("{0} v{1} - Copyright © 2013, Daniel Gross, daniel@belucha.de", BaseOperation.ExeName, Application.ProductVersion);
-                var options = args
-                    .Where(arg => arg.StartsWith("--")).Select(arg => arg.Substring(2).Split(new char[] { ':', '=', }, 2))
-                    .Select(pair => new KeyValuePair<string, string>(pair[0], pair.Length > 1 ? pair[1] : null));
-                var arguments = args.Where(arg => !arg.StartsWith("--")).ToArray();
-                var operation = BaseOperation.GetOperation(options, arguments);
-                operation.Output = Console.Out;
-                var res = operation.HandleOptions(options);
-                if (res < 0)
-                    return res;
-                operation.PreRun();
-                res = operation.Run();
-                operation.ShowStatistics();
-                return res;
+                Console.WriteLine("{0} - v{1}", Application.ProductName, Application.ProductVersion);
+                Console.WriteLine("Copyright © 2013, Daniel Gross, daniel@belucha.de");
+                errorCode = OptionParser.ParseCommandLine().Run();
             }
             catch (Exception e)
             {
-                Console.WriteLine("\t{0,-20}{1}", "Error:", e.GetType().Name);
+                Console.WriteLine();
+                Console.WriteLine("Error:");
+                Console.WriteLine("\t{0,-20}{1}", "Type:", e.GetType().Name);
                 Console.WriteLine("\t{0,-20}{1}", "Message:", e.Message);
-                return -1;
+                errorCode = 1;
             }
+#if DEBUG
+            Console.WriteLine("Error code is: {0}", errorCode);
+            Console.WriteLine("Press return!");
+            Console.ReadLine();
+#endif
+            return errorCode;
         }
     }
 }

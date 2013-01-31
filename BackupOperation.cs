@@ -7,7 +7,9 @@ using System.Security.Cryptography;
 
 namespace de.intronik.backup
 {
-    [Description("Creates a backup of all source folders\nLine two\nTodo")]
+    [Command("backup", Description = "Creates a backup of all source folders", MinParameterCount = 2)]
+    [Command("copy", Description = "Creates a backup of all source folders", MinParameterCount = 2)]
+    [Command("cp", Description = "Creates a backup of all source folders", MinParameterCount = 2)]
     public class BackupOperation : HashOperation
     {
         const string TimeStampFormatString = @"yyyy-MM-dd_HH_mm";
@@ -16,23 +18,27 @@ namespace de.intronik.backup
         {
             EnterSourceDirectory,
             ProcessSourceFile,
-            CopyFile,
+            CopyFileProgress,
+            CopyFileDone,
+            HashFile,
+            HashFileDone,
             LinkFile,
             LinkDirectory,
         }
+
         #region private fields
-        delegate void CreateLinkDelegate(string linkName, FileSystemHashEntry target, int level);
         HashAlgorithm hashAlgorithm;
-        string _hashDir;
         string _destinationDirectory;
-        CreateLinkDelegate createFileLink;
-        CreateLinkDelegate createDirectoryLink;
-        long FileCount;
-        long DirectoryCount;
-        long CopyCount;
-        long LinkFileCount;
-        long LinkDirectoryCount;
+        long ProcessedFiles;
+        long ProcessedFolders;
+        long HashedFiles;
+        long HashedBytes;
+        long FolderLinks;
+        long FileLinks;
+        long CopiedBytes;
+        long CopiedFiles;
         long ExcludedCount;
+        long TotalBytes;
         string[] excludeList = new string[0];
         #endregion
 
@@ -40,8 +46,6 @@ namespace de.intronik.backup
         public BackupOperation()
         {
             this.hashAlgorithm = SHA1.Create();
-            this.DirectoryLinkCreation = backup.DirectoryLinkCreation.Symlink;
-            this.FileLinkCreation = backup.FileLinkCreation.Symlink;
         }
 
         public string DestinationDirectory
@@ -54,74 +58,11 @@ namespace de.intronik.backup
                     value = Path.GetFullPath(Path.Combine(Path.GetPathRoot(Directory.GetCurrentDirectory()), value));
                 this._destinationDirectory = Path.GetFullPath(value);
                 // check for empty hash directories -> use default if none was given
-                if (string.IsNullOrEmpty(this.HashDir))
-                    this.HashDir = HashEntry.GetDefaultHashDir(this._destinationDirectory);
+                if (string.IsNullOrEmpty(this.HashFolder))
+                    this.HashFolder = HashEntry.GetDefaultHashDir(this._destinationDirectory);
             }
         }
 
-        public string HashDir
-        {
-            get { return this._hashDir; }
-            set
-            {
-                if (String.IsNullOrEmpty(value))
-                    throw new ArgumentNullException();
-                this._hashDir = Path.GetFullPath(value);
-                var c = _hashDir.LastOrDefault();
-                if (c != Path.DirectorySeparatorChar && c != Path.AltDirectorySeparatorChar)
-                    this._hashDir = String.Format("{0}{1}", _hashDir, Path.DirectorySeparatorChar);
-            }
-        }
-
-        /// <summary>
-        /// Controls the way file links are created
-        /// </summary>
-        public FileLinkCreation FileLinkCreation
-        {
-            get
-            {
-                if (this.createFileLink == this.createHardLink) return backup.FileLinkCreation.Hardlink;
-                if (this.createFileLink == this.createSymbolicLink) return backup.FileLinkCreation.Symlink;
-                if (this.createFileLink == this.createReparseSymbolicLink) return backup.FileLinkCreation.RSymlink;
-                throw new ArgumentOutOfRangeException("FileLinkCreation");
-            }
-            set
-            {
-                switch (value)
-                {
-                    case backup.FileLinkCreation.Hardlink: this.createFileLink = this.createHardLink; break;
-                    case backup.FileLinkCreation.Symlink: this.createFileLink = this.createSymbolicLink; break;
-                    case backup.FileLinkCreation.RSymlink: this.createFileLink = this.createReparseSymbolicLink; break;
-                    default:
-                        throw new ArgumentOutOfRangeException("FileLinkCreation");
-                }
-            }
-        }
-
-        /// <summary>
-        /// Controls the way directory links are created
-        /// </summary>
-        public DirectoryLinkCreation DirectoryLinkCreation
-        {
-            get
-            {
-                if (this.createDirectoryLink == this.createJunction) return backup.DirectoryLinkCreation.Junction;
-                if (this.createDirectoryLink == this.createSymbolicLink) return backup.DirectoryLinkCreation.Symlink;
-                if (this.createDirectoryLink == this.createReparseSymbolicLink) return backup.DirectoryLinkCreation.RSymlink;
-                throw new ArgumentOutOfRangeException("DirectoryLinkCreation");
-            }
-            set
-            {
-                switch (value)
-                {
-                    case backup.DirectoryLinkCreation.Junction: this.createDirectoryLink = this.createJunction; break;
-                    case backup.DirectoryLinkCreation.Symlink: this.createDirectoryLink = this.createSymbolicLink; break;
-                    case backup.DirectoryLinkCreation.RSymlink: this.createDirectoryLink = this.createReparseSymbolicLink; break;
-                    default:
-                        throw new ArgumentOutOfRangeException("DirectoryLinkCreation");
-                }
-            }
-        }
 
         static Tuple<DirectoryInfo, string> DecodeSourceFolder(string folderString)
         {
@@ -139,7 +80,7 @@ namespace de.intronik.backup
             if (string.IsNullOrEmpty(this.DestinationDirectory))
                 throw new InvalidOperationException("Destination folder is not set!");
             // prepare hash directory
-            Console.WriteLine("Preparing hash folder");
+            Console.WriteLine("Preparing hash folder \"{0}\"", this.HashFolder);
             this.PrepareHashDirectory();
             Console.WriteLine("Hash folder preparation completed!");
             // prepare target directory
@@ -187,44 +128,12 @@ namespace de.intronik.backup
 
         #region private methods
 
-        void createHardLink(string name, FileSystemHashEntry entry, int level)
-        {
-            var target = HashDir + entry.ToString();
-            while (true)
-            {
-                var linkError = Win32.CreateHardLink(name, target, IntPtr.Zero) ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-                switch (linkError)
-                {
-                    case 0:     // ERROR_SUCCESS
-                        return;
-                    case 183:   // ERROR_ALREADY_EXISTS (target file already existing)
-                        throw new InvalidOperationException("Target file already exists!");
-                    case 1142:  // ERROR_TOO_MANY_LINKS
-                        File.Move(target, name);
-                        return;
-                    case 2:     // ERROR_FILE_NOT_FOUND
-                        this.CopyFile(entry.Info, target, level);
-                        break;
-                    case 3:     // ERROR_PATH_NOT_FOUND                        
-                    default:
-                        throw new Win32Exception(linkError, String.Format("CreateHardLink({0},{1}) returned 0x{2:X8}h", name, target, linkError));
-                }
-            }
-        }
-
-        void createJunction(string name, FileSystemHashEntry entry, int level)
-        {
-            var target = HashDir + entry.ToString();
-            Directory.CreateDirectory(name);
-            Win32.CreateJunction(name, target);
-        }
-
-        void createSymbolicLink(string linkName, FileSystemHashEntry entry, int level)
+        void CreateLink(string linkName, FileSystemHashEntry entry, int level)
         {
             while (true)
             {
                 var hc = entry.ToString();
-                var target = this.HashDir + hc;
+                var target = this.HashFolder + hc;
                 // check if copy file must be done
                 if (!entry.IsDirectory && !File.Exists(target))
                     this.CopyFile(entry.Info, target, level);
@@ -249,37 +158,10 @@ namespace de.intronik.backup
             }
         }
 
-        void createReparseSymbolicLink(string linkName, FileSystemHashEntry entry, int level)
-        {
-            throw new NotSupportedException("Createing symlinks this way is currently not supported!");
-            /*
-            var hc = entry.ToString();
-            var target = this.HashDir + hc;
-            // check if copy file must be done
-            if (!entry.IsDirectory && !File.Exists(target))
-                this.CopyFile(entry.Info, target, level);
-            // remove target drive
-            target = (target.Length > 2 && target[1] == ':') ? target.Substring(2) : target;
-            // create empty dir or file
-            if (entry.IsDirectory)
-                Directory.CreateDirectory(linkName);
-            else
-                File.WriteAllText(linkName, "");
-            // create link
-            Win32.CreateSymbolLink(linkName, target, true);
-             */
-        }
-
-
-        void CreateLink(string linkName, FileSystemHashEntry target, int level)
-        {
-            (target.IsDirectory ? this.createDirectoryLink : this.createFileLink)(linkName, target, level);
-        }
-
         CopyFileCallbackAction MyCopyFileCallback(string source, string destination, object state, long totalFileSize, long totalBytesTransferred)
         {
             var info = (KeyValuePair<FileSystemInfo, int>)state;
-            this.OnAction(HashLinkAction.CopyFile, info.Key, info.Value, String.Format("=>\"{0}\" ({1:0.0%})", destination, (double)totalBytesTransferred / (double)totalFileSize));
+            this.OnAction(HashLinkAction.CopyFileProgress, info.Key, info.Value, String.Format(" ({1:0.0%})", destination, (double)totalBytesTransferred / (double)totalFileSize));
             return CopyFileCallbackAction.Continue;
         }
 
@@ -289,41 +171,50 @@ namespace de.intronik.backup
             FileRoutines.CopyFile(info.FullName, dest, CopyFileOptions.AllowDecryptedDestination | CopyFileOptions.Restartable, MyCopyFileCallback,
                 new KeyValuePair<FileSystemInfo, int>(info, level));
             File.SetAttributes(dest, FileAttributes.Normal);
+            this.OnAction(HashLinkAction.CopyFileDone, info, level);
         }
 
-        string GetFullHashPath(HashEntry entry, bool tempfolder = false) { return this._hashDir + entry.ToString(tempfolder); }
-
-        void PrepareHashDirectory()
-        {
-            // create new hash directory, with default attributes
-            if (!Directory.Exists(this.HashDir))
-            {
-                var di = Directory.CreateDirectory(this.HashDir);
-                di.Attributes = di.Attributes | FileAttributes.Hidden | FileAttributes.Compressed | FileAttributes.NotContentIndexed;
-            }
-            // make sure all hash directories exist!
-            for (var i = 0; i < (1 << 12); i++)
-            {
-                Directory.CreateDirectory(Path.Combine(this.HashDir, "f", i.ToString("X3")));
-                Directory.CreateDirectory(Path.Combine(this.HashDir, "d", i.ToString("X3")));
-            }
-            // delete temp directory content
-            var tempDir = Path.Combine(this.HashDir, "t");
-            if (Directory.Exists(tempDir))
-                Directory.Delete(tempDir, true);
-            // recreate temp directory
-            Directory.CreateDirectory(Path.Combine(this.HashDir, "t"));
-        }
-
-
+#if DEBUG
+        int sleepTime = 500;
+#endif
         bool OnAction(HashLinkAction action, FileSystemInfo info, int level, string extendedInfo = null)
         {
-
+#if DEBUG
+            if (sleepTime != 0)
+                System.Threading.Thread.Sleep(sleepTime);
+            if (Console.KeyAvailable)
+            {
+                switch (Char.ToLower(Console.ReadKey(true).KeyChar))
+                {
+                    case 's':   // toggle sleep
+                        sleepTime = sleepTime == 0 ? 500 : 0;
+                        break;
+                    case '0':
+                        sleepTime = 0;
+                        break;
+                    case '1':
+                        sleepTime = 10;
+                        break;
+                    case '2':
+                        sleepTime = 50;
+                        break;
+                    case '3':
+                        sleepTime = 100;
+                        break;
+                    case '4':
+                        sleepTime = 250;
+                        break;
+                    case '5':
+                        sleepTime = 500;
+                        break;
+                }
+            }
+#endif
             // checks if the entry is in the exclude list            
             if (excludeList.Any(exclude => String.Compare(info.Name, exclude, true) == 0))
             {
                 ExcludedCount++;
-                Output.WriteLine("{0} (excluded)", info.FullName);
+                Console.WriteLine("{0} (excluded)", info.FullName);
                 return true;
             }
             else
@@ -331,25 +222,35 @@ namespace de.intronik.backup
                 switch (action)
                 {
                     case HashLinkAction.EnterSourceDirectory:
-                        DirectoryCount++;
+                        ProcessedFolders++;
                         break;
                     case HashLinkAction.ProcessSourceFile:
-                        FileCount++;
+                        ProcessedFiles++;
+                        TotalBytes += ((FileInfo)info).Length;
                         break;
-                    case HashLinkAction.CopyFile:
-                        CopyCount++;
+                    case HashLinkAction.CopyFileProgress:
+                        break;
+                    case HashLinkAction.CopyFileDone:
+                        CopiedBytes += ((FileInfo)info).Length;
+                        CopiedFiles++;
+                        break;
+                    case HashLinkAction.HashFile:
+                        break;
+                    case HashLinkAction.HashFileDone:
+                        HashedBytes += ((FileInfo)info).Length;
+                        HashedFiles++;
                         break;
                     case HashLinkAction.LinkDirectory:
-                        LinkDirectoryCount++;
+                        FolderLinks++;
                         break;
                     case HashLinkAction.LinkFile:
-                        LinkFileCount++;
+                        FileLinks++;
                         break;
                 }
-                if (action == HashLinkAction.EnterSourceDirectory && level <= this.Tree)
-                    Output.WriteLine(info.FullName);
+                if (action == HashLinkAction.EnterSourceDirectory && level <= this.MaxLevel)
+                    Console.WriteLine(info.FullName);
             }
-            Console.Title = String.Format("{0}: \"{1}\"{2}", action, info.FullName, extendedInfo);
+            Console.Title = String.Format("[{3}/{4}] {0}: \"{1}\"{2}", action, info.FullName, extendedInfo, FolderLinks + FileLinks, ProcessedFiles + ProcessedFolders);
             return false;
         }
 
@@ -408,7 +309,11 @@ namespace de.intronik.backup
                     //
                     // HANDLE FILE
                     //
-                    return OnAction(HashLinkAction.ProcessSourceFile, fileSystemInfo, level) ? null : new FileHashEntry((FileInfo)fileSystemInfo, hashAlgorithm);
+                    return OnAction(HashLinkAction.ProcessSourceFile, fileSystemInfo, level) ?
+                        null :  // filtered
+                        new FileHashEntry((FileInfo)fileSystemInfo, hashAlgorithm,
+                            (bytes) => OnAction(HashLinkAction.HashFile, fileSystemInfo, level),
+                            (bytes) => OnAction(HashLinkAction.HashFileDone, fileSystemInfo, level));
                 }
             }
             catch (IOException e)
@@ -424,23 +329,16 @@ namespace de.intronik.backup
         }
         #endregion
 
-        public override void PreRun()
-        {
-            base.PreRun();
-            print("Desitination path", DestinationDirectory);
-        }
 
-        protected override void PreHandleParameters()
+        protected override void OnParametersChanged()
         {
-            if (this.Parameters.Length < 2)
-                throw new InvalidOperationException("At least two parameters are required!");
-            base.PreHandleParameters();
+            base.OnParametersChanged();
             // destination folder
-            DestinationDirectory = Parameters.Last().Replace("*", DateTime.Now.ToString(TimeStampFormatString));
+            this.DestinationDirectory = Parameters.Last().Replace("*", DateTime.Now.ToString(TimeStampFormatString));
             this.Parameters = Parameters.Take(Parameters.Length - 1).ToArray();
         }
 
-        public override int Run()
+        protected override int DoOperation()
         {
             // source directory
             // RUN
@@ -460,42 +358,23 @@ namespace de.intronik.backup
         public override void ShowStatistics()
         {
             base.ShowStatistics();
-            print("Directories", DirectoryCount);
-            print("Files", FileCount);
-            print("Linked Files", LinkFileCount);
-            print("Linked Folders", LinkDirectoryCount);
-            print("Copied Files", CopyCount);
-            print("Copied Files", ExcludedCount);
+            print("Processed Files", ProcessedFiles);
+            print("Processed Folders", ProcessedFolders);
+            var processedObjects = ProcessedFiles + ProcessedFolders;
+            print("Processed Objects", processedObjects);
+            print("Processed Bytes", FormatBytes(TotalBytes));
+            print("Linked Files", FileLinks);
+            print("Linked Folders", FolderLinks);
+            var linkedObjects = FileLinks + FolderLinks;
+            print("Linked Objects", linkedObjects);
+            print("Copied Bytes", FormatBytes(CopiedBytes));
+            print("Copied Files", CopiedFiles);
+            print("Hashed Bytes", FormatBytes(HashedBytes));
+            print("Hashed Files", HashedFiles);
+            print("Execluded Files", ExcludedCount);
+            print("%Space saved", (1d - (double)CopiedBytes / (double)TotalBytes).ToString("0.0%"));
+            print("%Operations saved", (1d - (double)linkedObjects / (double)processedObjects).ToString("0.0%"));
             print("Errors", ErrorCount);
         }
-    }
-
-    public enum DirectoryLinkCreation
-    {
-        /// <summary>
-        /// Normal Windows Vista Symlink API function
-        /// </summary>
-        Symlink,
-        /// <summary>
-        /// Junctions are always absolute and are created using reparse points
-        /// Admin rights are required
-        /// </summary>
-        Junction,
-        /// <summary>
-        /// Create Symlink via DeviceIO Control and reparse points
-        /// No Admin rights are required
-        /// </summary>
-        RSymlink,
-    }
-
-    public enum FileLinkCreation
-    {
-        Symlink,
-        Hardlink,
-        /// <summary>
-        /// Link to files using symlink
-        /// Admin rights are required
-        /// </summary>
-        RSymlink,
     }
 }

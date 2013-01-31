@@ -7,7 +7,7 @@ using System.Text;
 
 namespace de.intronik.backup
 {
-    [Description("Removes unused hash entries from the hash folder.\nLine two\nTodo")]
+    [Command("clean", Syntax = "folders to scan", Description = "Removes unused hash entries from the hash folder.", MinParameterCount = 1, MaxParameterCount = int.MaxValue)]
     public class CleanOperation : HashOperation
     {
         int typeIndex;
@@ -16,11 +16,19 @@ namespace de.intronik.backup
         public uint deleteDirCount = 0;
         public uint deleteFileCount = 0;
         public long totalBytesDeleted = 0;
+
+        [Option(EmptyValue = "true", ShortDescription = "Enable delete operation")]
         public bool EnableDelete { get; set; }
 
-        void MarkHashEntryAsUsed(string hashEntryPath, int level = 0)
+        bool MarkHashEntryAsUsed(string hashEntryPath, int level = 0)
         {
-            if (hashEntryPath == null) return;
+            bool marked = true;
+            if (hashEntryPath == null) return true;
+            if (!hashEntryPath.StartsWith(this.HashFolder, StringComparison.InvariantCultureIgnoreCase))
+            {
+                Console.WriteLine("\"{0}\" does not target hash folder \"{1}\" and it is ignored!", hashEntryPath, HashFolder);
+                return false;
+            }
             var hashEntry = new PathHashEntry(hashEntryPath, this.typeIndex);
             if (hashEntry.IsDirectory)
             {
@@ -31,8 +39,9 @@ namespace de.intronik.backup
                 {
                     this.usedHashs[hashEntry] = true;
                     foreach (var fileEntry in Directory.GetFileSystemEntries(hashEntryPath))
-                        MarkHashEntryAsUsed(Win32.GetJunctionTarget(fileEntry), level + 1);
+                        marked &= MarkHashEntryAsUsed(Win32.GetJunctionTarget(fileEntry), level + 1);
                 }
+                return marked;
             }
             else
             {
@@ -40,6 +49,7 @@ namespace de.intronik.backup
                 // file entry
                 //
                 this.usedHashs[hashEntry] = true;
+                return true;
             }
         }
 
@@ -50,6 +60,8 @@ namespace de.intronik.backup
             {
                 foreach (var entry in directory.GetFileSystemInfos())
                 {
+                    if (level < MaxLevel)
+                        Console.WriteLine(entry.FullName);
                     // ignore hash folder                
                     if (entry.FullName.StartsWith(this.HashFolder, StringComparison.InvariantCultureIgnoreCase))
                         continue;
@@ -60,11 +72,9 @@ namespace de.intronik.backup
                     // check if the folder is a symbolic link
                     var t = Win32.GetJunctionTarget(entry.FullName);
                     if (t != null)
-                    {
-                        // yes mark as used and we are done
-                        MarkHashEntryAsUsed(t, level + 1);
-                        continue;
-                    }
+                        // yes mark as used and we are done, when it could be marked
+                        if (MarkHashEntryAsUsed(t, level + 1))
+                            continue;
                     // descend in directories
                     CheckDirectories(entry as DirectoryInfo, level + 1);
                 }
@@ -83,6 +93,11 @@ namespace de.intronik.backup
         {
             foreach (var entry in directory.GetFileSystemInfos())
             {
+                if (!entry.FullName.StartsWith(this.HashFolder, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    Console.WriteLine("\"{0}\" does not target hash folder \"{1}\" and it is ignored!", entry.FullName, HashFolder);
+                    return;
+                }
                 var h = new PathHashEntry(entry.FullName, typeIndex);
                 if (!this.usedHashs.ContainsKey(h))
                 {
@@ -115,8 +130,9 @@ namespace de.intronik.backup
                 DeleteUnused(new DirectoryInfo(Path.Combine(this.HashFolder, "f", i.ToString("x3"))), typeIndex);
         }
 
-        protected override void PreHandleParameters()
+        protected override void OnParametersChanged()
         {
+            base.OnParametersChanged();
             // use current dir as default argument
             if (Parameters.Length == 0)
                 this.Parameters = new string[] {
@@ -126,40 +142,34 @@ namespace de.intronik.backup
             this.HashFolder = HashEntry.GetDefaultHashDir(this.Parameters.First());
         }
 
-        public override void PreRun()
-        {
-            base.PreRun();
-            print("EnableDelete", EnableDelete ? "yes" : "no");
-        }
 
-        public override int Run()
+        protected override int DoOperation()
         {
             // update hash folder
-            this.HashFolder = Path.GetFullPath(HashFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
             if (!Directory.Exists(HashFolder))
                 throw new ArgumentException(String.Format("Invalid hashfolder \"{0}\"!", HashFolder));
-            this.typeIndex = this.HashFolder.Length + 1;
+            this.typeIndex = this.HashFolder.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Length + 1;
             // check on hash dir
             foreach (var dir in this.Parameters)
             {
-                Output.WriteLine("Scanning: \"{0}\"", dir);
+                Console.WriteLine("Scanning: \"{0}\"", dir);
                 CheckDirectories(dir);
             }
             print("Used hashs", UsedHashCount);
             if (UsedHashCount == 0)
             {
-                Output.WriteLine("No has files where marked as used! There is propably an error in the parameters!");
+                Console.WriteLine("No has files where marked as used! There is propably an error in the parameters!");
                 EnableDelete = false;
                 if (String.Compare(this.PromptInput("Continue anyway (this will erase the entire Hash directory)? [yes/NO] "), "yes", true) != 0)
                 {
-                    Output.WriteLine("aborted");
+                    Console.WriteLine("aborted");
                     return 1;
                 }
             }
             if (!EnableDelete)
-                Output.WriteLine("Counting unused files and directories in hash folder...");
+                Console.WriteLine("Counting unused files and directories in hash folder...");
             else
-                Output.WriteLine("Deleting files and directories from hash folder...");
+                Console.WriteLine("Deleting files and directories from hash folder...");
             DeleteUnused();
             print(EnableDelete ? "deleted files" : "unused files", deleteFileCount);
             print(EnableDelete ? "deleted folders" : "unused folders", deleteDirCount);
@@ -172,15 +182,15 @@ namespace de.intronik.backup
                     return 1;
                 }
                 EnableDelete = true;
-                Output.WriteLine("Deleting marked files and directories from hash folder...");
+                Console.WriteLine("Deleting marked files and directories from hash folder...");
                 DeleteUnused();
                 if (UsedHashCount == 0)
                 {
-                    Output.WriteLine("Deleting hash root folder!");
+                    Console.WriteLine("Deleting hash root folder!");
                     Directory.Delete(HashFolder, true);
                 }
             }
-            Output.WriteLine("done");
+            Console.WriteLine("done");
             return 0;
         }
     }

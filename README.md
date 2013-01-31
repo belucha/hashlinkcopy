@@ -24,9 +24,9 @@ Usage
 Backup
 ------
 Syntax:
-	bt.exe SourceFolder1[:alias1] [SourceFolder2 [SourceFolderN]] TargetFolder
+	bt.exe copy SourceFolder1[:alias1] [SourceFolder2 [SourceFolderN]] TargetFolder
 	   or
-	bt.exe @Folders.txt TargetFolder
+	bt.exe backup @Folders.txt TargetFolder
 	
 The file "Folders.txt" is utf8 encoded and each line corresponds to a source folder.
 
@@ -35,8 +35,8 @@ is automatically appended. For each source folder specified a symbolic link with
 created.
 
 Examples:
-	bt.exe C:\Users\Emmy C:\Users\Mark D:\Movies D:\Data F:\Backup
-	bt.exe @Folders.txt F:\Backup
+	bt.exe backup C:\Users\Emmy C:\Users\Mark D:\Movies D:\Data F:\Backup
+	bt.exe backup @Folders.txt F:\Backup
 	
 If there are two source folders with the same name, e.g.
 	bt.exe C:\Users\Emmy\Documents\ C:\Users\Mark\Documents\ F:\Backup
@@ -81,6 +81,10 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.0.0.0
+	* new command line parser
+	* command is first argument always
+	
 - 2.5.0.0
 	* alias syntax is added
 	* special handling of single source folder

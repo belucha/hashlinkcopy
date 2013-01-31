@@ -21,7 +21,7 @@ namespace de.intronik.backup
         public DateTime LastWriteTimeUtc { get { return ((FileInfo)this.Info).LastWriteTimeUtc; } }
         public Int64 Length { get { return ((FileInfo)this.Info).Length; } }
 
-        public FileHashEntry(FileInfo info, HashAlgorithm hashProvider)
+        public FileHashEntry(FileInfo info, HashAlgorithm hashProvider, Action<long> hashFile, Action<long> hashFileDone)
             : base(info)
         {
             // check if info is still valid
@@ -38,8 +38,12 @@ namespace de.intronik.backup
             }
             if (hash == null || hash.Length != 20 || cachedLastWriteTime != this.LastWriteTimeUtc || cachedLength != this.Length)
             {
+                if (hashFile != null)
+                    hashFile(info.Length);
                 using (var inputStream = File.OpenRead(info.FullName))
                     this.Hash = hash = hashProvider.ComputeHash(inputStream);
+                if (hashFileDone != null)
+                    hashFileDone(info.Length);
                 if (this.Length > CacheLimit)
                     this.SaveHashInfo();
             }
