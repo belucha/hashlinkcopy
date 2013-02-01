@@ -21,32 +21,64 @@ Features
 Usage
 =====
 Basic syntax is:
+	
 	bt.exe command --option1=value1 --option2=value2 --optionWithOutValue parameter1 parameter2 ... parameterN
+
 Options and commands are not case sensitive.
 
 Command: backup|copy|cp:
 ------------------------
+
 Syntax:
+	
 	bt.exe copy SourceFolder1[=alias1] [SourceFolder2=Alias2 [SourceFolderN]] TargetFolder
-	   or
+	
+	or
+	
 	bt.exe backup @FolderList1.txt SourceFolder @AnotherFolderList.txt TargetFolder
 	
-The file "FolderList1.txt" is utf8 encoded and each line corresponds to a source folder.
+The file "FolderList1.txt" is utf8 encoded and each line corresponds to a source folder, optionally followed by
+an alias, sample FolderList1.txt: 
+
+	C:\Users\Mark\Documents\=Mark
+	C:\Users\Emmi\Documents\=Emmi
+	D:\Projects
+	C:\Projects=ProjC
+
+With this file the two following commands would be identical:
+
+	bt cp @FolderList1.txt F:\Backup\
+	bt backup C:\Users\Mark\Documents\=Mark C:\Users\Emmi\Documents\=Emmi D:\Projects C:\Projects=ProjC F:\Backup\
 
 If the target folder is already existing the current time stamp in the form "yyyy-MM-dd_HH_mm" 
 is automatically appended. For each source folder specified a symbolic link with folder name is
 created.
 
 Examples:
+
 	bt.exe backup C:\Users\Emmy C:\Users\Mark D:\Movies D:\Data F:\Backup
 	bt.exe backup @Folders.txt F:\Backup
 	
 If there are two source folders with the same name, e.g.
+
 	bt.exe C:\Users\Emmy\Documents\ C:\Users\Mark\Documents\ F:\Backup
+	
 the backup tool would try to create two symbolic links with the "Documents" in the backup folder. 
 This will fail, after the first folder. The alias syntax allows to create separate names for each
 folder, e.g.
-	bt.exe C:\Users\Emmy\Documents\:EmmiesDocs C:\Users\Mark\Documents\:MarksDocs F:\Backup
+	
+	bt.exe C:\Users\Emmy\Documents\=EmmiesDocs C:\Users\Mark\Documents\=MarksDocs F:\Backup
+
+This would result in an folder structure like:
+
+	F:\Backup\
+		YYYY-MM-DD_HH:MM
+			EmmiesDocs
+				EmmiSub1
+				EmmiSub2
+			MarksDocs
+				FileA
+				MarkSub1
 
 Clean
 -----
