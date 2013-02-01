@@ -18,7 +18,11 @@ namespace de.intronik.backup
             return Path.Combine(Path.GetPathRoot(Path.GetFullPath(destinationPath)), DefaultHashDir) + Path.DirectorySeparatorChar.ToString();
         }
 
+
+        public FileSystemInfo Info { get { return GetFileSystemInfo(); } }
+
         protected abstract bool GetIsDirectory();
+        protected abstract FileSystemInfo GetFileSystemInfo();
 
         /// <summary>
         /// True, when the entry is a directory, false when it is a file

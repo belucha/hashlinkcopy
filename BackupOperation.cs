@@ -62,73 +62,11 @@ namespace de.intronik.backup
                     this.HashFolder = HashEntry.GetDefaultHashDir(this._destinationDirectory);
             }
         }
-
-
-        static Tuple<DirectoryInfo, string> DecodeSourceFolder(string folderString)
-        {
-            var splitted = folderString.Split(new char[] { '=', }, 2);
-            var newFolderString = splitted[0];
-            var alias = splitted.Length == 2 ? splitted[1] : "";
-            var info = new DirectoryInfo(newFolderString);
-            if (String.IsNullOrEmpty(alias))
-                alias = info.Name;
-            return new Tuple<DirectoryInfo, string>(info, alias);
-        }
-
-        void CopyFolders(string[] sourceFolders)
-        {
-            if (string.IsNullOrEmpty(this.DestinationDirectory))
-                throw new InvalidOperationException("Destination folder is not set!");
-            // prepare hash directory
-            Console.WriteLine("Preparing hash folder \"{0}\"", this.HashFolder);
-            this.PrepareHashDirectory();
-            Console.WriteLine("Hash folder preparation completed!");
-            // prepare target directory
-            Console.WriteLine("Checking target directory: \"{0}\"", this.DestinationDirectory);
-            if (Directory.Exists(this.DestinationDirectory))
-            {
-                var ts = DateTime.Now.ToString(TimeStampFormatString);
-                Console.WriteLine("Warning target directory already exists! Trying to append current time stamp ({0})!", ts);
-                this.DestinationDirectory = Path.Combine(this.DestinationDirectory, ts);
-                if (Directory.Exists(DestinationDirectory))
-                    Console.WriteLine("Warning new target directory \"{0}\" also already exists! Trying to continue using this directory anyway!", this.DestinationDirectory);
-            }
-            // do not create separate sub folder for a single source folder
-            string singleFolderDestinationDir = sourceFolders.Length == 1 ? this.DestinationDirectory : null;
-            if (sourceFolders.Length == 1)
-                this.DestinationDirectory = Path.GetFullPath(Path.Combine(this.DestinationDirectory, ".."));
-            // ensure root folder exists
-            Console.WriteLine("Creating target directory: \"{0}\"", this.DestinationDirectory);
-            Directory.CreateDirectory(this.DestinationDirectory);
-            // process source folders
-            foreach (var sourceFolderAndAlias in sourceFolders)
-            {
-                // start link generation in first directory level
-                var decodedSourceFolderAndAlias = DecodeSourceFolder(sourceFolderAndAlias);
-                var target = Path.Combine(this.DestinationDirectory, decodedSourceFolderAndAlias.Item2);
-                if (singleFolderDestinationDir != null) target = singleFolderDestinationDir;
-                Console.WriteLine("Linking \"{0}\"=>\"{1}\"...", decodedSourceFolderAndAlias.Item1.FullName, target);
-                if (Directory.Exists(target))
-                {
-                    this.HandleError(decodedSourceFolderAndAlias.Item1, new InvalidOperationException("Target folder already exists!"));
-                    continue;
-                }
-                var hashEntry = this.BuildHashEntry(decodedSourceFolderAndAlias.Item1, 1);
-                if (hashEntry != null)
-                {
-                    if (!OnAction(HashLinkAction.LinkDirectory, decodedSourceFolderAndAlias.Item1, 0))
-                        this.CreateLink(target, hashEntry, 0);
-                    Console.WriteLine("Linking of \"{0}\"=>\"{1}\" completed", decodedSourceFolderAndAlias.Item1.FullName, target);
-                }
-                else
-                    this.HandleError(decodedSourceFolderAndAlias.Item1, new ApplicationException(String.Format("Copy \"{0}\"=>\"{1}\" failed!", decodedSourceFolderAndAlias.Item1.FullName, target)));
-            }
-        }
         #endregion
 
         #region private methods
 
-        void CreateLink(string linkName, FileSystemHashEntry entry, int level)
+        void CreateLink(string linkName, HashEntry entry, int level)
         {
             while (true)
             {
@@ -160,24 +98,22 @@ namespace de.intronik.backup
 
         CopyFileCallbackAction MyCopyFileCallback(string source, string destination, object state, long totalFileSize, long totalBytesTransferred)
         {
-            var info = (KeyValuePair<FileSystemInfo, int>)state;
-            this.OnAction(HashLinkAction.CopyFileProgress, info.Key, info.Value, String.Format(" ({1:0.0%})", destination, (double)totalBytesTransferred / (double)totalFileSize));
+            this.OnAction(HashLinkAction.CopyFileProgress, source, (int)state, (long)(10000d * (double)totalBytesTransferred / (double)totalFileSize + 0.5d));
             return CopyFileCallbackAction.Continue;
         }
 
         void CopyFile(FileSystemInfo info, string dest, int level)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(dest));
-            FileRoutines.CopyFile(info.FullName, dest, CopyFileOptions.AllowDecryptedDestination | CopyFileOptions.Restartable, MyCopyFileCallback,
-                new KeyValuePair<FileSystemInfo, int>(info, level));
+            FileRoutines.CopyFile(info.FullName, dest, CopyFileOptions.AllowDecryptedDestination | CopyFileOptions.Restartable, MyCopyFileCallback, level);
             File.SetAttributes(dest, FileAttributes.Normal);
-            this.OnAction(HashLinkAction.CopyFileDone, info, level);
+            this.OnAction(HashLinkAction.CopyFileDone, info.FullName, level, ((FileInfo)info).Length);
         }
 
 #if DEBUG
         int sleepTime = 500;
 #endif
-        bool OnAction(HashLinkAction action, FileSystemInfo info, int level, string extendedInfo = null)
+        bool OnAction(HashLinkAction action, string path, int level, long progressOrLength = 0)
         {
 #if DEBUG
             if (sleepTime != 0)
@@ -210,51 +146,119 @@ namespace de.intronik.backup
                 }
             }
 #endif
-            // checks if the entry is in the exclude list            
-            if (excludeList.Any(exclude => String.Compare(info.Name, exclude, true) == 0))
+            switch (action)
             {
-                ExcludedCount++;
-                Console.WriteLine("{0} (excluded)", info.FullName);
-                return true;
+                case HashLinkAction.EnterSourceDirectory:
+                    // checks if the entry is in the exclude list            
+                    if (excludeList.Any(exclude => String.Compare(path, exclude, true) == 0))
+                    {
+                        ExcludedCount++;
+                        Console.WriteLine("\"{0}\" (excluded)", path);
+                        return true;
+                    }
+                    if (level <= this.MaxLevel)
+                        Console.WriteLine(path);
+                    ProcessedFolders++;
+                    SetTitle("\"{0}\"", path);
+                    break;
+                case HashLinkAction.ProcessSourceFile:
+                    // checks if the entry is in the exclude list            
+                    if (excludeList.Any(exclude => String.Compare(path, exclude, true) == 0))
+                    {
+                        ExcludedCount++;
+                        Console.WriteLine("\"{0}\" (excluded)", path);
+                        return true;
+                    }
+                    ProcessedFiles++;
+                    TotalBytes += progressOrLength;
+                    SetTitle("\"{0}\"", path);
+                    break;
+                case HashLinkAction.CopyFileProgress:
+                    SetTitle("Copy \"{0}\" ({1:0.0%})", path, progressOrLength * 0.0001d);
+                    break;
+                case HashLinkAction.CopyFileDone:
+                    CopiedBytes += progressOrLength;
+                    CopiedFiles++;
+                    break;
+                case HashLinkAction.HashFile:
+                    SetTitle("Hashing \"{0}\" ({1:0.0%})", path, progressOrLength * 0.0001d);
+                    break;
+                case HashLinkAction.HashFileDone:
+                    HashedBytes += progressOrLength;
+                    HashedFiles++;
+                    break;
+                case HashLinkAction.LinkDirectory:
+                    FolderLinks++;
+                    break;
+                case HashLinkAction.LinkFile:
+                    FileLinks++;
+                    break;
             }
-            else
-            {
-                switch (action)
-                {
-                    case HashLinkAction.EnterSourceDirectory:
-                        ProcessedFolders++;
-                        break;
-                    case HashLinkAction.ProcessSourceFile:
-                        ProcessedFiles++;
-                        TotalBytes += ((FileInfo)info).Length;
-                        break;
-                    case HashLinkAction.CopyFileProgress:
-                        break;
-                    case HashLinkAction.CopyFileDone:
-                        CopiedBytes += ((FileInfo)info).Length;
-                        CopiedFiles++;
-                        break;
-                    case HashLinkAction.HashFile:
-                        break;
-                    case HashLinkAction.HashFileDone:
-                        HashedBytes += ((FileInfo)info).Length;
-                        HashedFiles++;
-                        break;
-                    case HashLinkAction.LinkDirectory:
-                        FolderLinks++;
-                        break;
-                    case HashLinkAction.LinkFile:
-                        FileLinks++;
-                        break;
-                }
-                if (action == HashLinkAction.EnterSourceDirectory && level <= this.MaxLevel)
-                    Console.WriteLine(info.FullName);
-            }
-            Console.Title = String.Format("[{3}/{4}] {0}: \"{1}\"{2}", action, info.FullName, extendedInfo, FolderLinks + FileLinks, ProcessedFiles + ProcessedFolders);
             return false;
         }
 
-        FileSystemHashEntry BuildHashEntry(FileSystemInfo fileSystemInfo, int level)
+        void SetTitle(string format, params object[] args)
+        {
+            Console.Title = String.Format("[{1}/{2}]: {0}", String.Format(format, args), FolderLinks + FileLinks, ProcessedFiles + ProcessedFolders);
+        }
+
+        HashEntry BuildVirtualDirectoryHashEntry(Dictionary<string, FileSystemInfo> sourceItems, int level)
+        {
+            // required to throw error on correct entry
+            object currentEntry = sourceItems;
+            try
+            {
+                var m = new MemoryStream();
+                var w = new BinaryWriter(m);
+                var directoryEntries = new List<Tuple<FileSystemHashEntry, string>>(sourceItems.Count);
+                foreach (var kvp in sourceItems)
+                {
+                    // start link generation in first directory level
+                    currentEntry = kvp.Value;
+                    var target = kvp.Key;
+                    var subEntry = this.BuildFileSytemHashEntry(kvp.Value, level + 1);
+                    if (subEntry != null)
+                    {
+                        w.Write(subEntry.Info.Attributes.HasFlag(FileAttributes.Directory));
+                        w.Write(subEntry.Hash);
+                        w.Write(target);
+                        directoryEntries.Add(new Tuple<FileSystemHashEntry, string>(subEntry, target));
+                    }
+                    else
+                        this.HandleError(currentEntry, new ApplicationException(String.Format("Copy \"{0}\"=>\"{1}\" failed!", kvp.Value.FullName, target)));
+                }
+                var directoryEntry = new VirtualDirectoryHashEntry(sourceItems, hashAlgorithm.ComputeHash(m.ToArray()));
+                currentEntry = null;
+                var targetHashDir = GetFullHashPath(directoryEntry, false);
+                if (Directory.Exists(targetHashDir))
+                    return directoryEntry;
+                // create link structure in temp directory first                    
+                var tmpDirName = GetFullHashPath(directoryEntry, true) + "\\";
+                Directory.CreateDirectory(tmpDirName);
+                foreach (var subEntry in directoryEntries)
+                {
+                    if (OnAction(subEntry.Item1.IsDirectory ? HashLinkAction.LinkDirectory : HashLinkAction.LinkFile, subEntry.Item1.Info.FullName, level))
+                        return null;
+                    this.CreateLink(tmpDirName + subEntry.Item2, subEntry.Item1, level);
+                }
+                // we are done, rename directory
+                Directory.Move(tmpDirName, targetHashDir);
+                return directoryEntry;
+            }
+            catch (IOException e)
+            {
+                this.HandleError(currentEntry, e);
+                return null;
+            }
+            catch (Win32Exception e)
+            {
+                this.HandleError(currentEntry, e);
+                return null;
+            }
+        }
+
+
+        FileSystemHashEntry BuildFileSytemHashEntry(FileSystemInfo fileSystemInfo, int level)
         {
             // required to throw error on correct entry
             FileSystemInfo currentEntry = null;
@@ -268,7 +272,7 @@ namespace de.intronik.backup
                     //
 
                     // allow filters to apply, or display tools
-                    if (OnAction(HashLinkAction.EnterSourceDirectory, fileSystemInfo, level))
+                    if (OnAction(HashLinkAction.EnterSourceDirectory, fileSystemInfo.FullName, level))
                         return null;
                     var sourceDirectory = (DirectoryInfo)fileSystemInfo;
                     var m = new MemoryStream();
@@ -277,7 +281,7 @@ namespace de.intronik.backup
                     foreach (var entry in sourceDirectory.EnumerateFileSystemInfos())
                     {
                         currentEntry = entry;
-                        var subEntry = this.BuildHashEntry(entry, level + 1);
+                        var subEntry = this.BuildFileSytemHashEntry(entry, level + 1);
                         if (subEntry != null)
                         {
                             w.Write(subEntry.Info.Attributes.HasFlag(FileAttributes.Directory));
@@ -296,7 +300,7 @@ namespace de.intronik.backup
                     Directory.CreateDirectory(tmpDirName);
                     foreach (var subEntry in directoryEntries)
                     {
-                        if (OnAction(subEntry.IsDirectory ? HashLinkAction.LinkDirectory : HashLinkAction.LinkFile, subEntry.Info, level))
+                        if (OnAction(subEntry.IsDirectory ? HashLinkAction.LinkDirectory : HashLinkAction.LinkFile, subEntry.Info.FullName, level))
                             return null;
                         this.CreateLink(tmpDirName + subEntry.Info.Name, subEntry, level);
                     }
@@ -309,11 +313,11 @@ namespace de.intronik.backup
                     //
                     // HANDLE FILE
                     //
-                    return OnAction(HashLinkAction.ProcessSourceFile, fileSystemInfo, level) ?
+                    return OnAction(HashLinkAction.ProcessSourceFile, fileSystemInfo.FullName, level, ((FileInfo)fileSystemInfo).Length) ?
                         null :  // filtered
                         new FileHashEntry((FileInfo)fileSystemInfo, hashAlgorithm,
-                            (bytes) => OnAction(HashLinkAction.HashFile, fileSystemInfo, level),
-                            (bytes) => OnAction(HashLinkAction.HashFileDone, fileSystemInfo, level));
+                            (bytes) => OnAction(HashLinkAction.HashFile, fileSystemInfo.FullName, level, ((FileInfo)fileSystemInfo).Length),
+                            (bytes) => OnAction(HashLinkAction.HashFileDone, fileSystemInfo.FullName, level, ((FileInfo)fileSystemInfo).Length));
                 }
             }
             catch (IOException e)
@@ -340,19 +344,77 @@ namespace de.intronik.backup
 
         protected override int DoOperation()
         {
-            // source directory
-            // RUN
-            var sourceList = Parameters;
-            if (sourceList.Length == 1 && sourceList[0].StartsWith("@") && File.Exists(sourceList[0].Substring(1)))
-                sourceList = File
-                    .ReadAllLines(sourceList[0].Substring(1))
-                    .Select(line => line.Trim())
-                    .Where(line => line.Length > 0 && !line.StartsWith(";"))
-                    .ToArray();
-            this.StartTime = DateTime.Now;
-            CopyFolders(sourceList);
-            this.EndTime = DateTime.Now;
-            return 0;
+            // check destination directory
+            if (string.IsNullOrEmpty(this.DestinationDirectory))
+                throw new InvalidOperationException("Destination folder is not set!");
+
+            // process source list
+            var inputList = new List<string>();
+            foreach (var source in this.Parameters)
+            {
+                if (source.StartsWith("@") && File.Exists(source.Substring(1)))
+                    inputList.AddRange(File.ReadAllLines(source.Substring(1))
+                                        .Select(line => line.Trim())
+                                        .Where(line => line.Length > 0 && !line.StartsWith(";"))
+                                        .ToArray());
+                else
+                    inputList.Add(source);
+            }
+            // create dictionary with new names and folder sources
+            var sources = new Dictionary<string, FileSystemInfo>(inputList.Count, StringComparer.InvariantCultureIgnoreCase);
+            foreach (var sourceString in inputList)
+            {
+                var splitted = sourceString.Split(new char[] { '=', }, 2);
+                var newSourceString = splitted[0];
+                var alias = splitted.Length == 2 ? splitted[1] : "";
+                var info = Directory.Exists(newSourceString) ? (FileSystemInfo)new DirectoryInfo(newSourceString) : (FileSystemInfo)new FileInfo(newSourceString);
+                if (!info.Exists)
+                {
+                    HandleError(info, new FileNotFoundException("The source folder or file does not exist!"));
+                    continue;
+                }
+                if (String.IsNullOrEmpty(alias))
+                    alias = info.Name;
+                if (sources.ContainsKey(alias))
+                    throw new ArgumentException(String.Format("Error adding \"{0}\" as \"{1}\". Duplicate target name or alias!", info, alias));
+                sources.Add(alias, info);
+            }
+
+            if (sources.Count == 0)
+                throw new InvalidOperationException("At least one existing source is required!");
+
+            // prepare hash directory
+            Console.WriteLine("Preparing hash folder \"{0}\"", this.HashFolder);
+            this.PrepareHashDirectory();
+            Console.WriteLine("Hash folder preparation completed!");
+
+
+            // prepare target directory
+            var target = new DirectoryInfo(this.DestinationDirectory);
+            Console.WriteLine("Checking target directory: \"{0}\"", target.FullName);
+            if (target.Exists)
+            {
+                var ts = DateTime.Now.ToString(TimeStampFormatString);
+                Console.WriteLine("Warning target directory \"{0}\" already exists! Trying to append current time stamp ({1})!", target.FullName, ts);
+                target = new DirectoryInfo(Path.Combine(target.FullName, ts));
+                if (target.Exists)
+                    throw new InvalidOperationException(String.Format("New target directory \"{0}\" also already exists!", target.FullName));
+            }
+            // make sure the target parent folder exists
+            target.Parent.Create();
+            var hashEntry = sources.Count == 1 ? this.BuildFileSytemHashEntry(sources.First().Value, 1) : this.BuildVirtualDirectoryHashEntry(sources, 1);
+            if (hashEntry != null)
+            {
+                if (!OnAction(HashLinkAction.LinkDirectory, target.FullName, 1))
+                    this.CreateLink(target.FullName, hashEntry, 1);
+                Console.WriteLine("Linking of \"{0}\"=>\"{1}\" completed", target.FullName, hashEntry);
+                return 0;
+            }
+            else
+            {
+                this.HandleError(sources, new ApplicationException(String.Format("Failed to create link \"{0}\"!", target.FullName)));
+                return -1;
+            }
         }
 
         public override void ShowStatistics()

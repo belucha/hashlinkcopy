@@ -12,7 +12,7 @@ namespace de.intronik.backup
 
         public HashOperation()
         {
-            MaxLevel = 2;
+            MaxLevel = 3;
         }
 
         string _hashDir;
@@ -61,10 +61,10 @@ namespace de.intronik.backup
 
         protected UInt64 ErrorCount = 0;
 
-        protected virtual void HandleError(FileSystemInfo info, Exception exception)
+        protected virtual void HandleError(object sourceObject, Exception exception)
         {
             this.ErrorCount++;
-            Console.WriteLine("\"{1}\": {0}, Message: \"{2}\"", exception.GetType().Name, info.FullName, exception.Message);
+            Console.WriteLine("\"{1}\": {0}, Message: \"{2}\"", exception.GetType().Name, sourceObject, exception.Message);
         }
 
 

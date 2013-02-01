@@ -80,6 +80,7 @@
     <Compile Include="PathHashEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="VirtualDirectoryHashEntry.cs" />
     <Compile Include="Win32.cs" />
   </ItemGroup>
   <ItemGroup>

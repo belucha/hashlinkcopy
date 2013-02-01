@@ -20,15 +20,18 @@ Features
 
 Usage
 =====
+Basic syntax is:
+	bt.exe command --option1=value1 --option2=value2 --optionWithOutValue parameter1 parameter2 ... parameterN
+Options and commands are not case sensitive.
 
-Backup
-------
+Command: backup|copy|cp:
+------------------------
 Syntax:
-	bt.exe copy SourceFolder1[:alias1] [SourceFolder2 [SourceFolderN]] TargetFolder
+	bt.exe copy SourceFolder1[=alias1] [SourceFolder2=Alias2 [SourceFolderN]] TargetFolder
 	   or
-	bt.exe backup @Folders.txt TargetFolder
+	bt.exe backup @FolderList1.txt SourceFolder @AnotherFolderList.txt TargetFolder
 	
-The file "Folders.txt" is utf8 encoded and each line corresponds to a source folder.
+The file "FolderList1.txt" is utf8 encoded and each line corresponds to a source folder.
 
 If the target folder is already existing the current time stamp in the form "yyyy-MM-dd_HH_mm" 
 is automatically appended. For each source folder specified a symbolic link with folder name is
@@ -81,6 +84,9 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.1.0.0
+	* even sub folders are processed as hashs
+
 - 3.0.0.0
 	* new command line parser
 	* command is first argument always

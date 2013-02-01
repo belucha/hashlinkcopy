@@ -36,5 +36,10 @@ namespace de.intronik.backup
         {
             return this.directory;
         }
+
+        protected override System.IO.FileSystemInfo GetFileSystemInfo()
+        {
+            throw new InvalidOperationException();
+        }
     }
 }
