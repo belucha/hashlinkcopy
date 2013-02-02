@@ -67,20 +67,19 @@
     <Compile Include="CommandAttribute.cs" />
     <Compile Include="HashOperation.cs" />
     <Compile Include="HelpCommand.cs" />
-    <Compile Include="DirectoryHashEntry.cs" />
     <Compile Include="FileRoutines.cs" />
     <Compile Include="FileSystemHashEntry.cs" />
     <Compile Include="CleanOperation.cs" />
     <Compile Include="HashEntry.cs" />
     <Compile Include="FileHashEntry.cs" />
     <Compile Include="BackupOperation.cs" />
-    <Compile Include="BaseOperation.cs" />
     <Compile Include="OptionAttribute.cs" />
     <Compile Include="OptionParser.cs" />
     <Compile Include="PathHashEntry.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="VirtualDirectoryHashEntry.cs" />
+    <Compile Include="SourceItem.cs" />
+    <Compile Include="DirectoryHashEntry.cs" />
     <Compile Include="Win32.cs" />
   </ItemGroup>
   <ItemGroup>

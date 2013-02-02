@@ -5,13 +5,14 @@ using System.Text;
 
 namespace de.intronik.backup
 {
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
     public class CommandAttribute : Attribute
     {
-        public string Name { get; private set; }
-        public CommandAttribute(string name)
+        public string Name { get { return this.Names.First(); } }
+        public string[] Names { get; private set; }
+        public CommandAttribute(string name, params string[] alternateNames)
         {
-            this.Name = name;
+            this.Names = new string[] { name, }.Concat(alternateNames).ToArray();
             this.MinParameterCount = 0;
             this.MaxParameterCount = int.MaxValue;
         }
@@ -21,8 +22,9 @@ namespace de.intronik.backup
         public int MaxParameterCount { get; set; }
         public bool IsMatch(string command)
         {
-            return String.Compare(command, this.Name, StringComparison.InvariantCultureIgnoreCase) == 0;
+            return this.Names.Any(name => String.Compare(command, name, StringComparison.InvariantCultureIgnoreCase) == 0);
         }
         public Type Type { get; set; }
     }
 }
+

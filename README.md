@@ -116,6 +116,9 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.2.0.0
+	* refactoring sources (much improved)
+	
 - 3.1.0.0
 	* even sub folders are processed as hashs
 

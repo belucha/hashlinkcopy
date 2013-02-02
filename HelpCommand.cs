@@ -42,7 +42,7 @@ namespace de.intronik.backup
             }
             // get help for a specific command
             Console.WriteLine("Help for command \"{0}\":", command.Name);
-            Console.WriteLine("Syntax: \"{0} {1} {2}", OptionParser.ExeName, command.Name, command.Syntax);
+            Console.WriteLine("Syntax: \"{0} {1} {2}", OptionParser.ExeName, String.Join("|", command.Names), command.Syntax);
             Console.WriteLine("Parameters: {0}..{1}", command.MinParameterCount, command.MaxParameterCount);
             Console.WriteLine("Description: {0}", command.Description);
             Console.WriteLine("Options:");

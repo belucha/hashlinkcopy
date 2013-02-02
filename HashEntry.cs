@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Security.Cryptography;
 
 namespace de.intronik.backup
 {
@@ -11,26 +12,19 @@ namespace de.intronik.backup
     /// </summary>
     public abstract class HashEntry
     {
-        const string DefaultHashDir = @"Hash";
-
-        public static string GetDefaultHashDir(string destinationPath)
-        {
-            return Path.Combine(Path.GetPathRoot(Path.GetFullPath(destinationPath)), DefaultHashDir) + Path.DirectorySeparatorChar.ToString();
-        }
-
-
-        public FileSystemInfo Info { get { return GetFileSystemInfo(); } }
-
+        public static HashAlgorithm HashProvider = SHA1.Create();
         protected abstract bool GetIsDirectory();
-        protected abstract FileSystemInfo GetFileSystemInfo();
+        protected abstract byte[] GetHash();
 
         /// <summary>
         /// True, when the entry is a directory, false when it is a file
         /// </summary>
         public bool IsDirectory { get { return GetIsDirectory(); } }
 
-        public byte[] Hash { get; protected set; }
-
+        /// <summary>
+        /// Returns the HashCode for this Entry
+        /// </summary>
+        public byte[] Hash { get { return this.GetHash(); } }
         public override int GetHashCode()
         {
             return BitConverter.ToInt32(this.Hash, 0);
@@ -49,11 +43,12 @@ namespace de.intronik.backup
 
         public string ToString(bool tempFile)
         {
+            var h = this.Hash;
             var s = new StringBuilder(45);
             s.Append(tempFile ? "t\\" : (this.IsDirectory ? "d\\" : "f\\"));
             for (var i = 0; i < 20; i++)
             {
-                var b = Hash[i];
+                var b = h[i];
                 var nibble = b >> 4;
                 s.Append((Char)(nibble < 10 ? '0' + nibble : ('a' + nibble - 10)));
                 if (i == 1 && !tempFile)
@@ -64,4 +59,5 @@ namespace de.intronik.backup
             return s.ToString();
         }
     }
+
 }

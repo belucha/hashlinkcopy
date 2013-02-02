@@ -3,7 +3,6 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Security.Cryptography;
 
 namespace de.intronik.backup
 {
@@ -11,19 +10,33 @@ namespace de.intronik.backup
     /// HashEntry for a FileInfo object
     /// the hash is either calculated or read from an ADS data stream
     /// </summary>
-    public class FileHashEntry : FileSystemHashEntry
+    public class FileHashEntry : HashEntry
     {
         const string STREAM = @"de.Intronik.HashInfo"; // name of the ADS Stream used to store the cached hashed info
         const int SIZE = 8 + 8 + 20;
         const long CacheLimit = 4 << 10;
+        byte[] _cachedHash;
 
+        protected override bool GetIsDirectory() { return false; }
+        protected override byte[] GetHash() { return this._cachedHash; }
 
-        public DateTime LastWriteTimeUtc { get { return ((FileInfo)this.Info).LastWriteTimeUtc; } }
-        public Int64 Length { get { return ((FileInfo)this.Info).Length; } }
+        public FileInfo Info { get; private set; }
+        public DateTime LastWriteTimeUtc { get { return this.Info.LastWriteTimeUtc; } }
+        public Int64 Length { get { return this.Info.Length; } }
+        public string FullName { get { return this.Info.FullName; } }
 
-        public FileHashEntry(FileInfo info, HashAlgorithm hashProvider, Action<long> hashFile, Action<long> hashFileDone)
-            : base(info)
+        public enum HashAction
         {
+            CacheHit,
+            CalcStart,
+            CalcEnd,
+        };
+
+        public delegate void HashActionDelegate(HashAction action, FileInfo file, long processedBytes);
+
+        public FileHashEntry(FileInfo info, HashActionDelegate action)
+        {
+            this.Info = info;
             // check if info is still valid
             DateTime cachedLastWriteTime;
             long cachedLength;
@@ -38,17 +51,21 @@ namespace de.intronik.backup
             }
             if (hash == null || hash.Length != 20 || cachedLastWriteTime != this.LastWriteTimeUtc || cachedLength != this.Length)
             {
-                if (hashFile != null)
-                    hashFile(info.Length);
+                if (action != null)
+                    action(HashAction.CalcStart, info, 0);
                 using (var inputStream = File.OpenRead(info.FullName))
-                    this.Hash = hash = hashProvider.ComputeHash(inputStream);
-                if (hashFileDone != null)
-                    hashFileDone(info.Length);
+                    this._cachedHash = hash = HashProvider.ComputeHash(inputStream);
+                if (action != null)
+                    action(HashAction.CalcEnd, info, 0);
                 if (this.Length > CacheLimit)
                     this.SaveHashInfo();
             }
             else
-                this.Hash = hash;
+            {
+                this._cachedHash = hash;
+                if (action != null)
+                    action(HashAction.CacheHit, info, cachedLength);
+            }
         }
 
         static void ReadHashInfo(string filename, out DateTime lastWriteTime, out long length, out byte[] hash)
@@ -84,7 +101,7 @@ namespace de.intronik.backup
                 // remove RO attribute
                 var ro = (this.Info.Attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly;
                 if (ro)
-                    File.SetAttributes(this.Info.FullName, Info.Attributes & (~FileAttributes.ReadOnly));
+                    File.SetAttributes(this.Info.FullName, this.Info.Attributes & (~FileAttributes.ReadOnly));
                 using (var w = new BinaryWriter(new FileStream(Win32.CreateFile(this.Info.FullName + ":" + STREAM,
                     FileAccess.Write, FileShare.Write, IntPtr.Zero,
                     FileMode.Create, 0, IntPtr.Zero), FileAccess.Write)))

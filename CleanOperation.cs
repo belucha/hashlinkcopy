@@ -139,7 +139,7 @@ namespace de.intronik.backup
                     Directory.GetCurrentDirectory(),
                  };
             // set default hash folder
-            this.HashFolder = HashEntry.GetDefaultHashDir(this.Parameters.First());
+            this.HashFolder = GetDefaultHashDir(this.Parameters.First());
         }
 
 
