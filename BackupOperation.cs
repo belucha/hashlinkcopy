@@ -103,10 +103,7 @@ namespace de.intronik.backup
                 throw new InvalidOperationException("At least one existing source is required!");
 
             // prepare hash directory
-            Console.WriteLine("Preparing hash folder \"{0}\"", this.HashFolder);
             this.PrepareHashDirectory();
-            Console.WriteLine("Hash folder preparation completed!");
-
 
             // prepare target directory
             var target = new DirectoryInfo(this.DestinationDirectory);

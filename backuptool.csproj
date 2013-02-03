@@ -65,6 +65,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CommandAttribute.cs" />
+    <Compile Include="CompressOperation.cs" />
     <Compile Include="HashOperation.cs" />
     <Compile Include="HelpCommand.cs" />
     <Compile Include="FileRoutines.cs" />

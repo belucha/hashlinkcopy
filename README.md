@@ -116,6 +116,9 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.3.0.0
+	* basic replace/compress function works (statistics and error handling need a lot of improvement)
+
 - 3.2.0.0
 	* refactoring sources (much improved)
 	
