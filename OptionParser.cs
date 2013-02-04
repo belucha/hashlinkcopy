@@ -48,7 +48,7 @@ namespace de.intronik.backup
             {
                 var splitted = optionString.Substring(2).Split(new char[] { '=', ':', }, 2);
                 var name = splitted[0];
-                var value = splitted[1];
+                var value = splitted.Length > 1 ? splitted[1] : null;
                 var matches = options.Where(o => o.IsMatch(name)).ToArray();
                 if (matches.Length == 0)
                     throw new ArgumentException(String.Format("Unknown option \"{0}\" for \"{1}\"!", optionString, command));

@@ -59,5 +59,4 @@ namespace de.intronik.backup
             return s.ToString();
         }
     }
-
 }

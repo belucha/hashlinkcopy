@@ -9,12 +9,20 @@ namespace de.intronik.backup
     [Command("backup", "copy", "cp", Description = "Creates a backup of all source folders", MinParameterCount = 2)]
     public class BackupOperation : HashOperation
     {
+        #region private fields
+        string _destinationDirectory;
+        long copiedBytes;
+        long copiedFiles;
+        long excludedCount;
+        string[] excludeList = new string[0];
+        #endregion
+
+        #region public options
         [Option(Name = "DateTimeFormat", ShortDescription = "target directory date time format string", LongDescription = "YYYY...4 digits year")]
         public string TimeStampFormatString { get; set; }
 
-        #region private fields
-        string _destinationDirectory;
-        string[] excludeList = new string[0];
+        [Option(Name = "pcf", ShortDescription = "print copied file names", LongDescription = "If set all files that will copied will be printed on console", EmptyValue = "true")]
+        public bool PrintCopiedFilenames { get; set; }
         #endregion
 
         #region public methods
@@ -39,22 +47,12 @@ namespace de.intronik.backup
         }
         #endregion
 
-        #region private methods
-
-
-        protected override bool FileSystemFilter(FileSystemInfo fileSystemInfo, int level)
+        #region protected methods
+        protected override void SetParameters(string[] value)
         {
-            return excludeList.Any(exclude => String.Compare(fileSystemInfo.FullName, exclude, true) == 0);
-        }
-        #endregion
-
-
-        protected override void OnParametersChanged()
-        {
-            base.OnParametersChanged();
             // destination folder
-            this.DestinationDirectory = Parameters.Last().Replace("*", DateTime.Now.ToString(TimeStampFormatString));
-            this.Parameters = Parameters.Take(Parameters.Length - 1).ToArray();
+            this.DestinationDirectory = value.Last().Replace("*", DateTime.Now.ToString(TimeStampFormatString));
+            base.SetParameters(value.Take(value.Length - 1).ToArray());
         }
 
         protected override int DoOperation()
@@ -126,5 +124,137 @@ namespace de.intronik.backup
             Console.WriteLine("Linking of \"{0}\"=>\"{1}\" completed", target.FullName, hashEntry);
             return 0;
         }
+
+        protected override void ShowStatistics()
+        {
+            base.ShowStatistics();
+            print("Copied Bytes", FormatBytes(copiedBytes));
+            print("Copied Files", copiedFiles);
+            print("Execluded Files", excludedCount);
+            print("%Space saved", (1d - (double)copiedBytes / (double)TotalBytes).ToString("0.0%"));
+        }
+        #endregion
+
+        #region private methods
+        void Excluded(FileSystemInfo info, int level)
+        {
+            excludedCount++;
+            if (level <= this.MaxLevel)
+                Console.WriteLine("\"{0}\" (excluded)", info.FullName);
+        }
+
+        bool FileSystemFilter(FileSystemInfo fileSystemInfo, int level)
+        {
+            return excludeList.Any(exclude => String.Compare(fileSystemInfo.FullName, exclude, true) == 0);
+        }
+
+        CopyFileCallbackAction MyCopyFileCallback(string source, string destination, object state, long totalFileSize, long totalBytesTransferred)
+        {
+            SetTitle("Copy \"{0}\" ({1:0.0%})", source, (double)totalBytesTransferred / (double)totalFileSize);
+            return CopyFileCallbackAction.Continue;
+        }
+
+        FileHashEntry ProvideHash(FileHashEntry missingHash, int level)
+        {
+            var targetName = GetFullHashPath(missingHash);
+            if (!File.Exists(targetName))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(targetName));
+                FileRoutines.CopyFile(missingHash.FullName, targetName, CopyFileOptions.AllowDecryptedDestination | CopyFileOptions.Restartable, MyCopyFileCallback, level);
+                this.copiedBytes += missingHash.Length;
+                this.copiedFiles++;
+                if (PrintCopiedFilenames)
+                    Console.WriteLine("Copied file #{2}: \"{0}\"=>{1}", missingHash.FullName, missingHash, copiedFiles);
+                File.SetAttributes(targetName, FileAttributes.Normal);
+            }
+            return missingHash;
+        }
+
+        HashEntry ProvideHash(DirectoryHashEntry missingHash, int level)
+        {
+            var targetName = GetFullHashPath(missingHash, false);
+            if (!Directory.Exists(targetName))
+            {
+                // create link structure in temp directory first                    
+                var tmpDirName = GetFullHashPath(missingHash, true) + "\\";
+                Directory.CreateDirectory(tmpDirName);
+                foreach (var kvp in missingHash.Entries)
+                    this.CreateLink(tmpDirName + kvp.Key, kvp.Value, level + 1);
+                // we are done, rename directory
+                Directory.Move(tmpDirName, targetName);
+            }
+            return missingHash;
+        }
+
+        HashEntry BuildHashEntry(SourceItem sourceItem, int level = 0)
+        {
+            // check if the entry should be filtered
+            if (FileSystemFilter(sourceItem.FileSystemInfo, level))
+            {
+                Excluded(sourceItem.FileSystemInfo, level);
+                return null;
+            }
+            try
+            {
+                if ((sourceItem.FileSystemInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
+                {
+                    // it's a folder
+                    var dirInfo = sourceItem.FileSystemInfo as DirectoryInfo;
+                    EnterSourceDirectory(dirInfo, level);
+                    return BuildHashEntry(sourceItem.Name, dirInfo.GetFileSystemInfos().Select(f => new SourceItem(f)), level + 1);
+                }
+                else
+                {
+                    // is a file
+                    var fileInfo = sourceItem.FileSystemInfo as FileInfo;
+                    ProcessSourceFile(fileInfo, level);
+                    return new PathHashEntry(this.ProvideHash(new FileHashEntry(fileInfo, ProcessHashAction), level));
+                }
+            }
+            catch (IOException e)
+            {
+                this.HandleError(sourceItem.FileSystemInfo, e);
+                return null;
+            }
+            catch (Win32Exception e)
+            {
+                this.HandleError(sourceItem.FileSystemInfo, e);
+                return null;
+            }
+        }
+
+        HashEntry BuildHashEntry(string name, IEnumerable<SourceItem> sourceItems, int level = 0)
+        {
+            // required to throw error on correct entry
+            FileSystemInfo currentEntry = null;
+            try
+            {
+                var directoryEntry = new DirectoryHashEntry(name, 100);
+                foreach (var sourceItem in sourceItems)
+                {
+                    // start link generation in first directory level
+                    currentEntry = sourceItem.FileSystemInfo;
+                    // build hash for that folder
+                    var subEntry = BuildHashEntry(sourceItem, level + 1);
+                    // check if the sub entry is invalid or has been filtered!
+                    if (subEntry == null) continue;
+                    // store hash and sub entry
+                    directoryEntry.Entries.Add(sourceItem.Name, subEntry);
+                }
+                return new PathHashEntry(this.ProvideHash(directoryEntry, level + 1));
+            }
+            catch (IOException e)
+            {
+                this.HandleError(currentEntry, e);
+                return null;
+            }
+            catch (Win32Exception e)
+            {
+                this.HandleError(currentEntry, e);
+                return null;
+            }
+        }
+        #endregion
+
     }
 }

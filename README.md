@@ -83,6 +83,8 @@ This would result in an folder structure like:
 Clean
 -----
    
+Compress
+--------
    
 Options
 -------   
@@ -116,6 +118,11 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.4.0.0
+	* improved statistics
+	* moved some methods
+	* option parser fix, when using default values
+	
 - 3.3.0.0
 	* basic replace/compress function works (statistics and error handling need a lot of improvement)
 

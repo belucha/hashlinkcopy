@@ -14,7 +14,6 @@ namespace de.intronik.backup
         protected const string DefaultHashDir = @"Hash";
         protected int debugSleepTime = 500;
         protected string[] parameters;
-        protected bool setParams;
         protected string _hashDir;
         protected DateTime StartTime;
         protected DateTime EndTime;
@@ -27,10 +26,7 @@ namespace de.intronik.backup
         protected long HashedBytes;
         protected long FolderLinks;
         protected long FileLinks;
-        protected long LinkedObjects { get { return this.FileLinks + this.FolderLinks; } }
-        protected long CopiedBytes;
-        protected long CopiedFiles;
-        protected long ExcludedCount;
+        protected long LinkedObjects { get { return this.FileLinks + this.FolderLinks; } }        
         protected long TotalBytes;
 
 
@@ -63,27 +59,12 @@ namespace de.intronik.backup
             Console.WriteLine("{0,-20}: {1}", name, value);
         }
 
-        protected string PromptInput(string prompt, params object[] args)
-        {
-            return PromptInput(null, prompt, args);
-        }
-
-        protected string PromptInput(Func<string, bool> inputOkPredicate, string prompt, params object[] args)
-        {
-            while (true)
-            {
-                Console.Write(String.Format(prompt, args));
-                var answer = Console.ReadLine().Trim();
-                if (inputOkPredicate == null || inputOkPredicate(answer))
-                    return answer;
-            }
-        }
-
         protected virtual void ShowStatistics()
         {
             print("Start", this.StartTime);
             print("End", this.EndTime);
             print("Duration", this.EndTime.Subtract(this.StartTime));
+            print("Errors", ErrorCount);
             print("Processed Files", ProcessedFiles);
             print("Processed Folders", ProcessedFolders);
             print("Processed Objects", ProcessedObjects);
@@ -91,14 +72,9 @@ namespace de.intronik.backup
             print("Linked Files", FileLinks);
             print("Linked Folders", FolderLinks);
             print("Linked Objects", LinkedObjects);
-            print("Copied Bytes", FormatBytes(CopiedBytes));
-            print("Copied Files", CopiedFiles);
             print("Hashed Bytes", FormatBytes(HashedBytes));
             print("Hashed Files", HashedFiles);
-            print("Execluded Files", ExcludedCount);
-            print("%Space saved", (1d - (double)CopiedBytes / (double)TotalBytes).ToString("0.0%"));
             print("%Operations saved", (1d - (double)LinkedObjects / (double)ProcessedObjects).ToString("0.0%"));
-            print("Errors", ErrorCount);
         }
 
         protected void EnterSourceDirectory(DirectoryInfo directory, int level)
@@ -109,7 +85,7 @@ namespace de.intronik.backup
             SetTitle(directory.FullName);
         }
 
-        protected virtual void ProcessHashAction(FileHashEntry.HashAction action, FileInfo file, long processedBytes)
+        protected void ProcessHashAction(FileHashEntry.HashAction action, FileInfo file, long processedBytes)
         {
             switch (action)
             {
@@ -169,19 +145,6 @@ namespace de.intronik.backup
             this.TotalBytes += file.Length;
         }
 
-        protected void CopiedSourceFile(FileHashEntry file, int level)
-        {
-            this.CopiedBytes += file.Length;
-            this.CopiedFiles++;
-        }
-
-        protected void Excluded(FileSystemInfo info, int level)
-        {
-            ExcludedCount++;
-            if (level <= this.MaxLevel)
-                Console.WriteLine("\"{0}\" (excluded)", info.FullName);
-        }
-
         protected void SetTitle(string format, params object[] args)
         {
             Console.Title = String.Format("[{1}/{2}]: {0}", String.Format(format, args), LinkedObjects, ProcessedObjects);
@@ -205,24 +168,12 @@ namespace de.intronik.backup
         public string[] Parameters
         {
             get { return this.parameters; }
-            set
-            {
-                this.parameters = value;
-                if (setParams) return;
-                try
-                {
-                    setParams = true;
-                    this.OnParametersChanged();
-                }
-                finally
-                {
-                    setParams = false;
-                }
-            }
+            set { this.SetParameters(value); }
         }
 
-        protected virtual void OnParametersChanged()
+        protected virtual void SetParameters(string[] value)
         {
+            this.parameters = value;
         }
 
         public int Run()
@@ -267,41 +218,6 @@ namespace de.intronik.backup
 
         protected string GetFullHashPath(HashEntry entry, bool tempfolder = false) { return this._hashDir + entry.ToString(tempfolder); }
 
-        CopyFileCallbackAction MyCopyFileCallback(string source, string destination, object state, long totalFileSize, long totalBytesTransferred)
-        {
-            SetTitle("Copy \"{0}\" ({1:0.0%})", source, (double)totalBytesTransferred / (double)totalFileSize);
-            return CopyFileCallbackAction.Continue;
-        }
-
-        protected virtual FileHashEntry ProvideHash(FileHashEntry missingHash, int level)
-        {
-            var targetName = GetFullHashPath(missingHash);
-            if (!File.Exists(targetName))
-            {
-                Directory.CreateDirectory(Path.GetDirectoryName(targetName));
-                FileRoutines.CopyFile(missingHash.FullName, targetName, CopyFileOptions.AllowDecryptedDestination | CopyFileOptions.Restartable, MyCopyFileCallback, level);
-                File.SetAttributes(targetName, FileAttributes.Normal);
-                this.CopiedSourceFile(missingHash, level);
-            }
-            return missingHash;
-        }
-
-        protected virtual HashEntry ProvideHash(DirectoryHashEntry missingHash, int level)
-        {
-            var targetName = GetFullHashPath(missingHash, false);
-            if (!Directory.Exists(targetName))
-            {
-                // create link structure in temp directory first                    
-                var tmpDirName = GetFullHashPath(missingHash, true) + "\\";
-                Directory.CreateDirectory(tmpDirName);
-                foreach (var kvp in missingHash.Entries)
-                    this.CreateLink(tmpDirName + kvp.Key, kvp.Value, level + 1);
-                // we are done, rename directory
-                Directory.Move(tmpDirName, targetName);
-            }
-            return missingHash;
-        }
-
         protected void CreateLink(string linkName, HashEntry entry, int level)
         {
             while (true)
@@ -332,78 +248,5 @@ namespace de.intronik.backup
             }
         }
 
-        protected virtual bool FileSystemFilter(FileSystemInfo fileSystemInfo, int level)
-        {
-            return false;
-        }
-
-        protected HashEntry BuildHashEntry(SourceItem sourceItem, int level = 0)
-        {
-            // check if the entry should be filtered
-            if (FileSystemFilter(sourceItem.FileSystemInfo, level))
-            {
-                Excluded(sourceItem.FileSystemInfo, level);
-                return null;
-            }
-            try
-            {
-                if ((sourceItem.FileSystemInfo.Attributes & FileAttributes.Directory) == FileAttributes.Directory)
-                {
-                    // it's a folder
-                    var dirInfo = sourceItem.FileSystemInfo as DirectoryInfo;
-                    EnterSourceDirectory(dirInfo, level);
-                    return BuildHashEntry(sourceItem.Name, dirInfo.GetFileSystemInfos().Select(f => new SourceItem(f)), level + 1);
-                }
-                else
-                {
-                    // is a file
-                    var fileInfo = sourceItem.FileSystemInfo as FileInfo;
-                    ProcessSourceFile(fileInfo, level);
-                    return new PathHashEntry(this.ProvideHash(new FileHashEntry(fileInfo, ProcessHashAction), level));
-                }
-            }
-            catch (IOException e)
-            {
-                this.HandleError(sourceItem.FileSystemInfo, e);
-                return null;
-            }
-            catch (Win32Exception e)
-            {
-                this.HandleError(sourceItem.FileSystemInfo, e);
-                return null;
-            }
-        }
-
-        protected HashEntry BuildHashEntry(string name, IEnumerable<SourceItem> sourceItems, int level = 0)
-        {
-            // required to throw error on correct entry
-            FileSystemInfo currentEntry = null;
-            try
-            {
-                var directoryEntry = new DirectoryHashEntry(name, 100);
-                foreach (var sourceItem in sourceItems)
-                {
-                    // start link generation in first directory level
-                    currentEntry = sourceItem.FileSystemInfo;
-                    // build hash for that folder
-                    var subEntry = BuildHashEntry(sourceItem, level + 1);
-                    // check if the sub entry is invalid or has been filtered!
-                    if (subEntry == null) continue;
-                    // store hash and sub entry
-                    directoryEntry.Entries.Add(sourceItem.Name, subEntry);
-                }
-                return new PathHashEntry(this.ProvideHash(directoryEntry, level + 1));
-            }
-            catch (IOException e)
-            {
-                this.HandleError(currentEntry, e);
-                return null;
-            }
-            catch (Win32Exception e)
-            {
-                this.HandleError(currentEntry, e);
-                return null;
-            }
-        }
     }
 }
