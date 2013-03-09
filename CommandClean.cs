@@ -8,7 +8,7 @@ using System.Text;
 namespace de.intronik.backup
 {
     [Command("clean", Syntax = "folders to scan", Description = "Removes unused hash entries from the hash folder.", MinParameterCount = 1, MaxParameterCount = int.MaxValue)]
-    public class CleanOperation : HashOperation
+    public class CommandClean : CommandBase
     {
         Dictionary<HashEntry, bool> usedHashs = new Dictionary<HashEntry, bool>();
         int typeIndex;

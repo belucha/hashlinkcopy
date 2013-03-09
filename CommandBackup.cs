@@ -7,7 +7,7 @@ using System.Linq;
 namespace de.intronik.backup
 {
     [Command("backup", "copy", "cp", Description = "Creates a backup of all source folders", MinParameterCount = 2)]
-    public class BackupOperation : HashOperation
+    public class CommandBackup : CommandBase
     {
         #region private fields
         string _destinationDirectory;
@@ -26,7 +26,7 @@ namespace de.intronik.backup
         #endregion
 
         #region public methods
-        public BackupOperation()
+        public CommandBackup()
         {
             this.TimeStampFormatString = @"yyyy-MM-dd_HH_mm";
         }

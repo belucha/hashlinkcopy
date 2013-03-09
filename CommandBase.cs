@@ -9,7 +9,7 @@ using System.Text;
 
 namespace de.intronik.backup
 {
-    public abstract class HashOperation : ICommand
+    public abstract class CommandBase : ICommand
     {
         protected const string DefaultHashDir = @"Hash";
         protected int debugSleepTime = 500;
@@ -30,7 +30,7 @@ namespace de.intronik.backup
         protected long TotalBytes;
 
 
-        public HashOperation()
+        public CommandBase()
         {
             MaxLevel = 3;
         }

@@ -12,7 +12,7 @@ namespace de.intronik.backup
         MinParameterCount = 0,
         MaxParameterCount = 1
         )]
-    class HelpCommand : ICommand
+    class CommandHelp : ICommand
     {
         string[] parameters;
         public string[] Parameters

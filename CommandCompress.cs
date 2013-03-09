@@ -11,7 +11,7 @@ namespace de.intronik.backup
         Syntax = "folderOrFile1 folderOrFile2 folderOrFileN",
         MinParameterCount = 1
         )]
-    public class CompressOperation : HashOperation
+    public class CommandCompress : CommandBase
     {
         #region private fields
         /// <summary>

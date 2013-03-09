@@ -8,12 +8,6 @@ using System.Windows.Forms;
 
 namespace de.intronik.backup
 {
-    public interface ICommand
-    {
-        string[] Parameters { set; }
-        int Run();
-    }
-
     public class OptionParser : ICommand
     {
         public static string ExeName;

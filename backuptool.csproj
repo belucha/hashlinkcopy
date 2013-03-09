@@ -65,15 +65,18 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CommandAttribute.cs" />
-    <Compile Include="CompressOperation.cs" />
-    <Compile Include="HashOperation.cs" />
-    <Compile Include="HelpCommand.cs" />
+    <Compile Include="CommandCompress.cs" />
+    <Compile Include="CommandReduce.cs" />
+    <Compile Include="ExcludeList.cs" />
+    <Compile Include="CommandBase.cs" />
+    <Compile Include="CommandHelp.cs" />
     <Compile Include="FileRoutines.cs" />
     <Compile Include="FileSystemHashEntry.cs" />
-    <Compile Include="CleanOperation.cs" />
+    <Compile Include="CommandClean.cs" />
     <Compile Include="HashEntry.cs" />
     <Compile Include="FileHashEntry.cs" />
-    <Compile Include="BackupOperation.cs" />
+    <Compile Include="CommandBackup.cs" />
+    <Compile Include="ICommand.cs" />
     <Compile Include="OptionAttribute.cs" />
     <Compile Include="OptionParser.cs" />
     <Compile Include="PathHashEntry.cs" />
