@@ -26,7 +26,7 @@ namespace de.intronik.backup
         protected long HashedBytes;
         protected long FolderLinks;
         protected long FileLinks;
-        protected long LinkedObjects { get { return this.FileLinks + this.FolderLinks; } }        
+        protected long LinkedObjects { get { return this.FileLinks + this.FolderLinks; } }
         protected long TotalBytes;
 
 
@@ -147,7 +147,7 @@ namespace de.intronik.backup
 
         protected void SetTitle(string format, params object[] args)
         {
-            Console.Title = String.Format("[{1}/{2}]: {0}", String.Format(format, args), LinkedObjects, ProcessedObjects);
+            Console.Title = String.Format("[{1}/{2}]: {0}", args.Length > 0 ? String.Format(format, args) : format, LinkedObjects, ProcessedObjects);
         }
 
         protected static string FormatBytes(long bytes)

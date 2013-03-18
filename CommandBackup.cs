@@ -221,6 +221,11 @@ namespace de.intronik.backup
                 this.HandleError(sourceItem.FileSystemInfo, e);
                 return null;
             }
+            catch (UnauthorizedAccessException e)
+            {
+                this.HandleError(sourceItem.FileSystemInfo, e);
+                return null;
+            }
         }
 
         HashEntry BuildHashEntry(string name, IEnumerable<SourceItem> sourceItems, int level = 0)

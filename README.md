@@ -118,6 +118,13 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.6.0.0
+	* BUGFIX: catch UnathorizedAccess exception
+	* BUGFIX: fixed FormatException in SetTitle for filenames of the format {}
+
+- 3.5.0.0
+	* basic source of reduce added (not completed yet)
+
 - 3.4.0.0
 	* improved statistics
 	* moved some methods
