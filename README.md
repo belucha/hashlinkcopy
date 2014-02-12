@@ -118,6 +118,8 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.7.0.0
+	* BUGFIX: fixed ArgumentException when adding "duplicate" entries to the Directory dictionary (reason was an unsuitable StringComparer for e.g. Paß and Pas)
 - 3.6.0.0
 	* BUGFIX: catch UnathorizedAccess exception
 	* BUGFIX: fixed FormatException in SetTitle for filenames of the format {}

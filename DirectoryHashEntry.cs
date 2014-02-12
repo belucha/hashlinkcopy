@@ -14,7 +14,7 @@ namespace de.intronik.backup
         public DirectoryHashEntry(string name, int capacity)
         {
             this.Name = name;
-            this.Entries = new Dictionary<string, HashEntry>(capacity, StringComparer.InvariantCultureIgnoreCase);
+            this.Entries = new Dictionary<string, HashEntry>(capacity, StringComparer.Ordinal);
         }
         protected override bool GetIsDirectory() { return true; }
 
