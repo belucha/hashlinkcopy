@@ -99,20 +99,25 @@ desireable, if the cost in space and of course time are low.
 There have been other programs namingly Luphino RsyncBackup that utilized advanced file system features
 (hard links) to achive this goal.
 However there where some major draw backs:
-1. Due to a not fully understood problem of the NTFS file system the backup becomes slower with every backup 
-   iteration, as the number of hard links on the target drive increases. Since every backup cycle needs to create
+
+1) Due to a not fully understood problem of the NTFS file system the backup becomes slower with every backup iteration, 
+   as the number of hard links on the target drive increases. Since every backup cycle needs to create
    the same number of hard links and folders as the source folders. In my case every daily backup was adding about
    2 million hard links to the backup drive. The initial 120min of a full backup, yielded in more than 8h time for
    creating the hard links. This was the case after running about 100 full back ups. Using a profiler I found that
    the Win32 function "CreateHardlink" was often stalled for about 60 seconds. The frequency of the stalling increased
    as the target drive had more and more hard links.
-2. Even if nothing in the source tree changed, the number of file operations for a backup is equal to the number
+
+2) Even if nothing in the source tree changed, the number of file operations for a backup is equal to the number
    of files plus folders in the source tree. Usually only small portions of the source tree are changed.
-3. The tool only creates hard links for files that are having the exact same name and path. If a large file
+
+3) The tool only creates hard links for files that are having the exact same name and path. If a large file
    is moved to another folder, it will be copied to the backup drive again.
-4. If multiple files with the same content are found several times, they are copied to the backup drive multiple
+
+4) If multiple files with the same content are found several times, they are copied to the backup drive multiple
    times, even if their content is exactly the same.
-5. The efficent operation of the tool relies on a memory based dictionary that has been created during the previous
+
+5) The efficent operation of the tool relies on a memory based dictionary that has been created during the previous
    backup. Thus the memory utilization scales with the number of files to be backuped.
 
 
