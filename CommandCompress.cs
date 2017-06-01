@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace de.intronik.backup
 {
@@ -36,13 +37,27 @@ namespace de.intronik.backup
             var hashPath = this.GetFullHashPath(hash);
             // either move current file to hash folder or delete it
             dirInfo.Attributes = FileAttributes.Normal;
-            if (Directory.Exists(hashPath))
-            {
+            if (Directory.Exists(hashPath)) {
                 this.duplicateFolders++;
                 dirInfo.Delete(true);
+            } else {
+                //while (Directory.Exists(dirInfo.FullName))  //sometimes folder inspection of antivirus etc. may lock
+                try {
+                    Directory.Move(dirInfo.FullName, hashPath); // otherwise the dirInfo is updated
+                } catch (IOException) {
+                    var i = 20;
+                    while (Directory.Exists(dirInfo.FullName) && (i > 0)) {
+                        i--;
+                        //Console.WriteLine($"Directory {dirInfo.FullName} is locked by someone else {i}");
+                        Thread.Sleep(50);
+                        Directory.Move(dirInfo.FullName, hashPath);
+                    }
+                    if (i == 0) {
+                        Console.WriteLine($"Directory {dirInfo.FullName} is locked by someone else");
+                        throw new InvalidOperationException();
+                    }
+                }
             }
-            else
-                Directory.Move(dirInfo.FullName, hashPath); // otherwise the dirInfo is updated
             // create link
             CreateLink(dirInfo.FullName, hash, level);
             // return new hash (that free's up memory)

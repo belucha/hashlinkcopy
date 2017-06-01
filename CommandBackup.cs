@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace de.intronik.backup
 {
@@ -20,6 +21,9 @@ namespace de.intronik.backup
         #region public options
         [Option(Name = "DateTimeFormat", ShortDescription = "target directory date time format string", LongDescription = "YYYY...4 digits year")]
         public string TimeStampFormatString { get; set; }
+
+        [Option(Name = "ExcludeList", ShortDescription = "name of file with list of excludes")]
+        public string ExcludeListFileName { get; set; }
 
         [Option(Name = "pcf", ShortDescription = "print copied file names", LongDescription = "If set all files that will copied will be printed on console", EmptyValue = "true")]
         public bool PrintCopiedFilenames { get; set; }
@@ -87,6 +91,15 @@ namespace de.intronik.backup
                         return true;
                 }).ToList();
 
+            // load exclude list from file
+            var eclList = new List<string>();
+            if (File.Exists(ExcludeListFileName))
+                eclList.AddRange(File.ReadAllLines(ExcludeListFileName)
+                                        .Select(line => line.Trim())
+                                        .Where(line => line.Length > 0 && !line.StartsWith(";"))
+                                        .ToArray());
+            excludeList = eclList.ToArray();
+
             // check for duplicates
             foreach (var group in sources.GroupBy(s => s.Name, StringComparer.InvariantCultureIgnoreCase))
             {
@@ -145,7 +158,8 @@ namespace de.intronik.backup
 
         bool FileSystemFilter(FileSystemInfo fileSystemInfo, int level)
         {
-            return excludeList.Any(exclude => String.Compare(fileSystemInfo.FullName, exclude, true) == 0);
+            //return excludeList.Any(exclude => String.Compare(fileSystemInfo.FullName, exclude, true) == 0);
+            return excludeList.Any(exclude => fileSystemInfo.FullName.ToLower().EndsWith(exclude.ToLower()));
         }
 
         CopyFileCallbackAction MyCopyFileCallback(string source, string destination, object state, long totalFileSize, long totalBytesTransferred)
@@ -181,7 +195,23 @@ namespace de.intronik.backup
                 foreach (var kvp in missingHash.Entries)
                     this.CreateLink(tmpDirName + kvp.Key, kvp.Value, level + 1);
                 // we are done, rename directory
-                Directory.Move(tmpDirName, targetName);
+                //while(Directory.Exists(tmpDirName)) //sometimes folder inspection of antivirus etc. may lock
+                try {
+                    Directory.Move(tmpDirName, targetName);
+                }
+                catch(IOException) {
+                    var i = 20;
+                    while (Directory.Exists(tmpDirName) && (i > 0)) {
+                        i--;
+                        //Console.WriteLine($"Directory {tmpDirName} is locked by someone else {i}");
+                        Thread.Sleep(50);
+                        Directory.Move(tmpDirName, targetName);
+                    }
+                    if (i == 0) {
+                        Console.WriteLine($"Directory {tmpDirName} is locked by someone else");
+                        throw new InvalidOperationException();
+                    }
+                }
             }
             return missingHash;
         }

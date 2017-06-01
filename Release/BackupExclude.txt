@@ -1,0 +1,6 @@
+F:\Quelle\Altium\Altium Repository\Altium Designer 10\Builds\274119876543221\Software Platform - Release 10\uzipzipzipzip\Documents\Library\Software Platform R10\make
+.git
+.gitignore
+.bak
+Thumbs.db
+.picasa.ini

@@ -58,6 +58,7 @@ Examples:
 
 	bt.exe backup C:\Users\Emmy C:\Users\Mark D:\Movies D:\Data F:\Backup
 	bt.exe backup @Folders.txt F:\Backup
+	bt.exe backup @BackupDirectories.txt --ExcludeList:BackupExclude.txt F:\Backup\
 	
 If there are two source folders with the same name, e.g.
 
@@ -123,8 +124,14 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.8.0.0
+	* support of large path names (Windows 10, Windows Server 2016)
+	* command line parameter --ExcludeList:"filename"
+	* .net TargetFrameworkVersion v4.6
+
 - 3.7.0.0
 	* BUGFIX: fixed ArgumentException when adding "duplicate" entries to the Directory dictionary (reason was an unsuitable StringComparer for e.g. Paß and Pas)
+
 - 3.6.0.0
 	* BUGFIX: catch UnathorizedAccess exception
 	* BUGFIX: fixed FormatException in SetTitle for filenames of the format {}
