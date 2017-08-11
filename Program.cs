@@ -18,7 +18,7 @@ namespace de.intronik.backup
             try
             {
                 Console.WriteLine("{0} - v{1}", Application.ProductName, Application.ProductVersion);
-                Console.WriteLine("Copyright © 2017, INTRONIK GmbH");
+                //Console.WriteLine("Copyright © 2017, INTRONIK GmbH");
                 errorCode = OptionParser.ParseCommandLine().Run();
             }
             catch (Exception e)

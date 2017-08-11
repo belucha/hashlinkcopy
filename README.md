@@ -50,9 +50,19 @@ With this file the two following commands would be identical:
 	bt cp @FolderList1.txt F:\Backup\
 	bt backup C:\Users\Mark\Documents\=Mark C:\Users\Emmi\Documents\=Emmi D:\Projects C:\Projects=ProjC F:\Backup\
 
-If the target folder is already existing the current time stamp in the form "yyyy-MM-dd_HH_mm" 
+If the target folder is already existing the current time stamp in the form "yyyy-MM-dd_HH-mm" 
 is automatically appended. For each source folder specified a symbolic link with folder name is
 created.
+
+Exclude:
+
+With the parameter --ExcludeList:'textfile.txt'
+The textfile may contain
+    F:\Quelle\Altium\Altium                         -excludes that specific file or folder
+    .bak                                            -excludes all files or folders ending with that extension
+    .example.ini                                    -excludes all files or folders *.example.ini but not example.ini
+    Thumbs.db                                       -excludes all files or folders with that name
+    ;anything                                       -commented out - backup is done for that line
 
 Examples:
 
@@ -73,7 +83,7 @@ folder, e.g.
 This would result in an folder structure like:
 
 	F:\Backup\
-		YYYY-MM-DD_HH:MM
+		YYYY-MM-DD_HH-MM
 			EmmiesDocs
 				EmmiSub1
 				EmmiSub2
@@ -124,6 +134,9 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.9.0.0
+	* check that target path contains no links at start of backup command
+
 - 3.8.0.0
 	* support of large path names (Windows 10, Windows Server 2016)
 	* command line parameter --ExcludeList:"filename"

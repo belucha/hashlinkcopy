@@ -33,7 +33,7 @@ namespace de.intronik.backup
                         new Rule(2, 6, Unit.month),
                         new Rule(10, 1, Unit.year),
                     };
-            this.Pattern = @"yyyy-MM-dd_HH_mm";
+            this.Pattern = @"yyyy-MM-dd_HH-mm";
             this.DeletedFolders = new List<string>();
         }
 

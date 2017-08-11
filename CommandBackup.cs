@@ -32,7 +32,7 @@ namespace de.intronik.backup
         #region public methods
         public CommandBackup()
         {
-            this.TimeStampFormatString = @"yyyy-MM-dd_HH_mm";
+            this.TimeStampFormatString = @"yyyy-MM-dd_HH-mm";
         }
 
         public string DestinationDirectory
@@ -118,14 +118,40 @@ namespace de.intronik.backup
 
             // prepare target directory
             var target = new DirectoryInfo(this.DestinationDirectory);
-            Console.WriteLine("Checking target directory: \"{0}\"", target.FullName);
+            //Console.WriteLine("checking target directory: \"{0}\"", target.FullName);
             if (target.Exists)
             {
+                // TARGET has to be a FOLDER and can NOT be a LINK or FILE
+                var path = new DirectoryInfo(this.DestinationDirectory);
+                while (path != null) {
+                    if ((path.Attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint) {
+                        Console.WriteLine("error: target path \"{0}\" contains a ReparsePoint!", target.FullName);
+                        throw new InvalidOperationException(String.Format("target path \"{0}\" contains a ReparsePoint!", target.FullName));
+                    }
+                    if ((path.Attributes & FileAttributes.Directory) != FileAttributes.Directory) {
+                        Console.WriteLine("error: target \"{0}\" allready exists but is not a Directory!", target.FullName);
+                        throw new InvalidOperationException(String.Format("target \"{0}\" exists but is not a Directory!", target.FullName));
+                    }
+                    path = Directory.GetParent(path.ToString());
+                }
                 var ts = DateTime.Now.ToString(TimeStampFormatString);
-                Console.WriteLine("Warning target directory \"{0}\" already exists! Trying to append current time stamp ({1})!", target.FullName, ts);
+                Console.WriteLine("target directory \"{0}\" already exists! appending current time stamp ({1})!", target.FullName, ts);
                 target = new DirectoryInfo(Path.Combine(target.FullName, ts));
-                if (target.Exists)
+                if (target.Exists) {
+                    Console.WriteLine("error: target directory \"{0}\" allready exists but is not a Directory!", target.FullName);
                     throw new InvalidOperationException(String.Format("New target directory \"{0}\" also already exists!", target.FullName));
+                }
+            } else {
+                var path = new DirectoryInfo(this.DestinationDirectory);
+                path = Directory.GetParent(path.ToString());
+                while (path != null) {
+                    if ((path.Attributes & FileAttributes.ReparsePoint) == FileAttributes.ReparsePoint) {
+                        Console.WriteLine("error: target path \"{0}\" contains a ReparsePoint!", target.FullName);
+                        throw new InvalidOperationException(String.Format("target path \"{0}\" contains a ReparsePoint!", target.FullName));
+                    }
+                    path = Directory.GetParent(path.ToString());
+                }
+                Console.WriteLine("using directory \"{0}\" as target", target.FullName);
             }
             // make sure the target parent folder exists
             target.Parent.Create();

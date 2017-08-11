@@ -189,7 +189,7 @@ namespace de.intronik.backup
 
         protected void PrepareHashDirectory()
         {
-            Console.WriteLine("Preparing hash folder \"{0}\"", this.HashFolder);
+            //Console.WriteLine("Preparing hash folder \"{0}\"", this.HashFolder);
             // create new hash directory, with default attributes
             if (!Directory.Exists(this.HashFolder))
             {
@@ -208,7 +208,7 @@ namespace de.intronik.backup
                 Directory.Delete(tempDir, true);
             // recreate temp directory
             Directory.CreateDirectory(Path.Combine(this.HashFolder, "t"));
-            Console.WriteLine("Hash folder preparation completed!");
+            //Console.WriteLine("Hash folder preparation completed!");
         }
 
         protected static string GetDefaultHashDir(string destinationPath)
