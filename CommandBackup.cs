@@ -217,27 +217,13 @@ namespace de.intronik.backup
             {
                 // create link structure in temp directory first                    
                 var tmpDirName = GetFullHashPath(missingHash, true) + "\\";
+                if (Directory.Exists(tmpDirName))
+                    Directory.Delete(tmpDirName, true);
                 Directory.CreateDirectory(tmpDirName);
                 foreach (var kvp in missingHash.Entries)
                     this.CreateLink(tmpDirName + kvp.Key, kvp.Value, level + 1);
                 // we are done, rename directory
-                //while(Directory.Exists(tmpDirName)) //sometimes folder inspection of antivirus etc. may lock
-                try {
-                    Directory.Move(tmpDirName, targetName);
-                }
-                catch(IOException) {
-                    var i = 20;
-                    while (Directory.Exists(tmpDirName) && (i > 0)) {
-                        i--;
-                        //Console.WriteLine($"Directory {tmpDirName} is locked by someone else {i}");
-                        Thread.Sleep(50);
-                        Directory.Move(tmpDirName, targetName);
-                    }
-                    if (i == 0) {
-                        Console.WriteLine($"Directory {tmpDirName} is locked by someone else");
-                        throw new InvalidOperationException();
-                    }
-                }
+                FileRoutines.MoveDirectory(tmpDirName, targetName);
             }
             return missingHash;
         }
@@ -267,20 +253,28 @@ namespace de.intronik.backup
                     return new PathHashEntry(this.ProvideHash(new FileHashEntry(fileInfo, ProcessHashAction), level));
                 }
             }
-            catch (IOException e)
-            {
+            catch (ArgumentException e) {
+                // Illegales Zeichen im Pfad.
+                this.HandleError(sourceItem.FileSystemInfo, e);
+                Console.WriteLine("{0} excluded because it contains inaccessable data", sourceItem.FileSystemInfo.FullName);
+                return null;
+            }
+            catch (IOException e) {
                 this.HandleError(sourceItem.FileSystemInfo, e);
                 return null;
             }
-            catch (Win32Exception e)
-            {
+            catch (Win32Exception e) {
                 this.HandleError(sourceItem.FileSystemInfo, e);
                 return null;
             }
-            catch (UnauthorizedAccessException e)
-            {
+            catch (UnauthorizedAccessException e) {
                 this.HandleError(sourceItem.FileSystemInfo, e);
                 return null;
+            }
+            catch (Exception e) {
+                // print some details, on source of error
+                this.HandleError(sourceItem.FileSystemInfo, e);
+                throw e;
             }
         }
 

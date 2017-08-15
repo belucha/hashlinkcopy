@@ -134,6 +134,9 @@ However there where some major draw backs:
 
 Release notes
 =============
+- 3.10.0.0
+	* MoveDirectory improved
+
 - 3.9.0.0
 	* check that target path contains no links at start of backup command
 

@@ -41,22 +41,7 @@ namespace de.intronik.backup
                 this.duplicateFolders++;
                 dirInfo.Delete(true);
             } else {
-                //while (Directory.Exists(dirInfo.FullName))  //sometimes folder inspection of antivirus etc. may lock
-                try {
-                    Directory.Move(dirInfo.FullName, hashPath); // otherwise the dirInfo is updated
-                } catch (IOException) {
-                    var i = 20;
-                    while (Directory.Exists(dirInfo.FullName) && (i > 0)) {
-                        i--;
-                        //Console.WriteLine($"Directory {dirInfo.FullName} is locked by someone else {i}");
-                        Thread.Sleep(50);
-                        Directory.Move(dirInfo.FullName, hashPath);
-                    }
-                    if (i == 0) {
-                        Console.WriteLine($"Directory {dirInfo.FullName} is locked by someone else");
-                        throw new InvalidOperationException();
-                    }
-                }
+                FileRoutines.MoveDirectory(dirInfo.FullName, hashPath);
             }
             // create link
             CreateLink(dirInfo.FullName, hash, level);

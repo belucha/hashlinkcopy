@@ -1,19 +1,33 @@
-﻿using System;
+﻿	using System;
 using System.ComponentModel;
 using System.IO;
 using System.Security;
 using System.Security.Permissions;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Reflection;
+using System.Threading;
 using System.Runtime.InteropServices;
-using System.Security.Principal;
 
 namespace de.intronik.backup
 {
     public sealed class FileRoutines
     {
+        /// <summary>
+        /// Move directory and retry, if the dir is locked...
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="dest"></param>
+        public static void MoveDirectory(string source, string dest) {
+            IOException saved=null;
+            for (int i=0; i<20; i++)
+                try {
+                    Directory.Move(source, dest);
+                    return;
+                } catch (IOException e) {
+                    Thread.Sleep(50);
+                    saved = e;
+                }
+            throw new InvalidOperationException($"Failed to move directory {source} to {dest}. {saved.Message}", saved);
+        }
+
         public static void CopyFile(string source, string destination)
         {
             CopyFile(source, destination, CopyFileOptions.None);

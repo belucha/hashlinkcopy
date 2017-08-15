@@ -237,7 +237,7 @@ namespace de.intronik.backup
                         return;
                     case 80:    // ERROR_FILE_EXISTS
                     case 183:   // ERROR_ALREADY_EXISTS
-                        throw new InvalidOperationException(String.Format("Error creating symbolic link \"{0}\"=>\"{1}\". Directory already exists!", linkName, hashTargetPath));
+                        throw new InvalidOperationException(String.Format("Error creating symbolic link \"{0}\"=>\"{1}\". File or Directory already exists!", linkName, hashTargetPath));
                     case 1314:  // ERROR_PRIVILEGE_NOT_HELD
                         throw new System.Security.SecurityException("Not enough priveleges to create symbolic links!", new System.ComponentModel.Win32Exception(error));
                     case 2:     // ERROR_FILE_NOT_FOUND
