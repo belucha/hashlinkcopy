@@ -26,6 +26,14 @@ Basic syntax is:
 
 Options and commands are not case sensitive.
 
+- the User needs rights to create symlinks
+	(Gruppenrichtlinie Computerkonfiguration/Richtlinien/Windows-Einstellungen/Sicherheitseinstellungen/Lokale Richtlinien/Erstellen symbolischer Verknüpfungen)
+- long path names should be activated
+	(Gruppenrichtlinie Computerkonfiguration/Richtlinien/Administrative Vorlagen/System/Dateisystem/Lange Win32-Pfade aktivieren)
+- NTFS 8.3 names disabled on target drive
+	elevated cmd:  "fsutil 8dot3name set X: 1"
+	"fsutil 8dot3name query X:" should return 8.3 names disabled
+
 Command: backup|copy|cp:
 ------------------------
 
