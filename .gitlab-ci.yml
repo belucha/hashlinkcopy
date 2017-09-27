@@ -1,0 +1,17 @@
+binaries:
+  tags:
+    - dotNet
+  script: |
+    echo "Running build..."
+    call build.cmd
+  only:
+    - tags
+  artifacts:
+    name: backuptool
+    paths:
+      - bt.exe
+      - bt.exe.config
+      - BackupExclude.txt
+      - BackupDirectories.txt
+      - README.MD
+      - RunAsAdminBackup.cmd
