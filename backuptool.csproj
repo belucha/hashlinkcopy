@@ -91,9 +91,6 @@
   <ItemGroup>
     <None Include="app.config" />
     <None Include="App.manifest" />
-    <None Include="README.md">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.0,Profile=Client">
